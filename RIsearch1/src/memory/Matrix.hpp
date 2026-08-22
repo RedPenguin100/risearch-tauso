@@ -1,9 +1,10 @@
 #pragma once
 
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <utility>
+
+#include "memory/alloc.hpp"
 
 /**
  * A rows x cols matrix, allocated as a single block: the row pointers first,
@@ -25,8 +26,7 @@ public:
 
         m_data = static_cast<T**>(std::malloc(pointer_bytes + data_bytes));
         if (m_data == nullptr) {
-            std::fprintf(stderr, "Cannot allocate matrix with %u rows and %u cols\n", rows, cols);
-            std::exit(1);
+            out_of_memory("an alignment matrix", pointer_bytes + data_bytes);
         }
 
         T* values = reinterpret_cast<T*>(m_data + rows);

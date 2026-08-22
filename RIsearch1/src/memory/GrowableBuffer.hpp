@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <cstdlib>
 
+#include "memory/alloc.hpp"
+
 /**
  * An array that grows to whatever a run needs and is reused by the next one.
  *
@@ -49,6 +51,9 @@ public:
         const auto bytes = (wanted * sizeof(T) + kAlign - 1) / kAlign * kAlign;
         std::free(m_data);
         m_data = static_cast<T*>(std::aligned_alloc(kAlign, bytes));
+        if (m_data == nullptr) {
+            out_of_memory("a sweep buffer", bytes);
+        }
         m_capacity = bytes / sizeof(T);
     }
 

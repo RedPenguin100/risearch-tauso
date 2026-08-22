@@ -5,6 +5,8 @@
 // ReSharper disable once CppUnusedIncludeDirective
 #include <cstdlib>
 
+#include "memory/alloc.hpp"
+
 template<typename T>
 class MallocRAII {
 public:
@@ -14,6 +16,9 @@ public:
 
     explicit MallocRAII(size_t n) : m_buffer(static_cast<T*>(malloc(n * sizeof(T))))
     {
+        if (m_buffer == nullptr && n != 0) {
+            out_of_memory("a buffer", n * sizeof(T));
+        }
     }
 
     ~MallocRAII()
