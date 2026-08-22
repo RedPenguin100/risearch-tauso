@@ -28,7 +28,7 @@ template<typename int_type>
 __attribute__((target_clones("avx2", "default"))) static void
 RIs_linSpace(const ByteBuffer& query_sequence_ix,  // query sequence numerical representation
              const ByteBuffer& target_sequence_ix, // target sequence numerical representation
-             short dsm[6][6][6][6],                /* scoring matrix -- TODO variable length!? */
+             Dsm& dsm,                             /* scoring matrix -- TODO variable length!? */
              int threshold,                        /* give out hits higher than that */
              const char* qname,                    /* query name */
              const char* tname,                    /* target name */

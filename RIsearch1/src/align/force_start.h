@@ -25,7 +25,7 @@ static void fill_char_array(char* buf, std::uint32_t length)
 
 
 static float find_max_value_f(float** M, float** Ix, float** Iy, std::uint32_t* k, std::uint32_t* i,
-                              std::size_t j, std::size_t n, const short dsm[6][6][6][6],
+                              std::size_t j, std::size_t n, const Dsm& dsm,
                               const unsigned char* qseq, const unsigned char* tseq)
 {
     float max = 0.0;
@@ -51,8 +51,8 @@ static float find_max_value_f(float** M, float** Ix, float** Iy, std::uint32_t* 
 
 static void RIs_force_start_end_weighted(int force_start_val, const ByteBuffer& query_sequence,
                                          const ByteBuffer& target_sequence,
-                                         const float* weights,        /*array of weights */
-                                         const short dsm[6][6][6][6], /* scoring matrix */
+                                         const float* weights, /*array of weights */
+                                         const Dsm& dsm,       /* scoring matrix */
                                          [[maybe_unused]] IA*, /* pointer to struct, fill results */
                                          const char* matname)
 {
@@ -399,7 +399,7 @@ static void RIs_force_start_end_init(
     int force_start_val, const char* pos_weights,
     const ByteBuffer& query_sequence_ix,  // query sequence - numeric representation
     const ByteBuffer& target_sequence_ix, // target sequence - numeric representation
-    const short dsm[6][6][6][6],          /* scoring matrix */
+    const Dsm& dsm,                       /* scoring matrix */
     const char* matname                   /* name of the scoring matrix */
 )
 {

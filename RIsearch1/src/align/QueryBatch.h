@@ -51,8 +51,8 @@ public:
         return m_count == 0;
     }
 
-    void run(const ByteBuffer& target_seq, short (&dsm)[6][6][6][6], const char* tname,
-             int target_count, const config_st& config)
+    void run(const ByteBuffer& target_seq, Dsm& dsm, const char* tname, int target_count,
+             const config_st& config)
     {
         m_exact_rows = config.doSubopt && config.vicinity > 0;
         const bool swept = sweep_impl(target_seq, dsm, config.min_score);
@@ -81,7 +81,7 @@ public:
     /* Sweeps the batch against one target, or answers false and leaves the
        queries to be aligned one at a time. Public so that what it produces can
        be checked query by query against the ordinary sweep. */
-    bool sweep(const ByteBuffer& target_seq, short dsm[6][6][6][6], int threshold)
+    bool sweep(const ByteBuffer& target_seq, Dsm& dsm, int threshold)
     {
         return sweep_impl(target_seq, dsm, threshold);
     }
@@ -131,8 +131,7 @@ private:
 
        The whole batch goes through the kernel or none of it does: one query the
        int16 bound does not hold for would have to be swept on its own anyway. */
-    bool can_sweep(const ByteBuffer& target_seq, const short dsm[6][6][6][6],
-                   BatchInputs& inputs) const
+    bool can_sweep(const ByteBuffer& target_seq, const Dsm& dsm, BatchInputs& inputs) const
     {
         if (!CPU_HAS_AVX2 || m_count < kMinQueries || target_seq.is_empty()) {
             return false;
@@ -174,7 +173,7 @@ private:
         }
     }
 
-    bool sweep_impl(const ByteBuffer& target_seq, short dsm[6][6][6][6], int threshold)
+    bool sweep_impl(const ByteBuffer& target_seq, Dsm& dsm, int threshold)
     {
 #if RISEARCH1_HAS_AVX2
         BatchInputs inputs;
@@ -227,8 +226,8 @@ private:
        rows as values, and its Ix as the terms that make the sweep's scan
        reproduce it. */
     bool init_first_row(const unsigned char* const* queries, const std::uint32_t* lengths,
-                        std::uint32_t m, unsigned char t_last, short dsm[6][6][6][6],
-                        std::int16_t* first_score, std::int16_t* first_pos)
+                        std::uint32_t m, unsigned char t_last, Dsm& dsm, std::int16_t* first_score,
+                        std::int16_t* first_pos)
     {
         const auto stride = static_cast<std::size_t>(m + 1) * kQueries;
         std::int16_t* const m_row = m_m_rows.get() + stride; /* the row read first */
@@ -399,8 +398,8 @@ private:
     /* One query's hits, reported exactly as the unbatched path reports them: the
        sweep's runs are widened into the int arrays HitReporter reads, and the
        traceback that follows is the int32 one. */
-    void report_query(unsigned lane, const Entry& e, const ByteBuffer& target_seq,
-                      short dsm[6][6][6][6], const char* tname, const config_st& config)
+    void report_query(unsigned lane, const Entry& e, const ByteBuffer& target_seq, Dsm& dsm,
+                      const char* tname, const config_st& config)
     {
         const auto m = static_cast<std::uint32_t>(e.seq.size());
         const auto* query = e.seq.unsigned_data();

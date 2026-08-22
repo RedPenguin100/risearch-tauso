@@ -156,8 +156,8 @@ void print_header(const SequenceItem& query, const SequenceItem& target)
     }
 }
 
-void process_target(const SequenceItem& target, const std::vector<SequenceItem>& queries,
-                    short (&dsm)[6][6][6][6], const config_st& config)
+void process_target(const SequenceItem& target, const std::vector<SequenceItem>& queries, Dsm& dsm,
+                    const config_st& config)
 {
     /* Queries are swept together where the sweep is what runs. Only a file
        holds enough queries to fill a batch's lanes, and only a file numbers the
@@ -205,7 +205,7 @@ int main(int argc, char* argv[])
     /* values filled in by getArgs from the command line */
     static config_st config;
 
-    short dsm[6][6][6][6];
+    Dsm dsm;
 
     getArgs(argc, argv, config);
 

@@ -27,7 +27,7 @@ std::vector<unsigned char> sequence(std::uint32_t m, unsigned seed)
     return q;
 }
 
-void matrix(short (&out)[6][6][6][6])
+void matrix(Dsm& out)
 {
     getMat("su95_noGU", &out[0][0][0][0], 0, 0);
 }
@@ -46,7 +46,7 @@ const std::int16_t* pair(const BatchedQueryProfile& b, unsigned ctx, unsigned i,
 
 TEST(BatchedQueryProfile, HoldsWhatSixteenSingleProfilesHold)
 {
-    short dsm[6][6][6][6];
+    Dsm dsm;
     matrix(dsm);
 
     std::vector<std::vector<unsigned char>> qs;
@@ -101,7 +101,7 @@ TEST(BatchedQueryProfile, HoldsWhatSixteenSingleProfilesHold)
 
 TEST(BatchedQueryProfile, ALaneWithNoQueryIsDeadInEveryTerm)
 {
-    short dsm[6][6][6][6];
+    Dsm dsm;
     matrix(dsm);
 
     const auto q = sequence(20, 1);
@@ -128,7 +128,7 @@ TEST(BatchedQueryProfile, ALaneWithNoQueryIsDeadInEveryTerm)
 
 TEST(BatchedQueryProfile, AShortQueryIsDeadPastItsOwnEnd)
 {
-    short dsm[6][6][6][6];
+    Dsm dsm;
     matrix(dsm);
 
     // Lane 0 runs to 20, lane 1 stops at 12; the batch is built to 20.

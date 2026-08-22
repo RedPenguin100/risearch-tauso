@@ -85,7 +85,7 @@ double measure(int min_score, int repeats)
     make_sequence(target, kTargetLength, 0xf00d);
     const config_st config = bench_config(min_score);
 
-    short dsm[6][6][6][6];
+    Dsm dsm;
     char matname[] = "su95_noGU";
     getMat(matname, &dsm[0][0][0][0], config.extension_penalty, 0);
 
@@ -123,7 +123,7 @@ double measure_batched(int min_score, int repeats)
 
     const config_st config = bench_config(min_score);
 
-    short dsm[6][6][6][6];
+    Dsm dsm;
     char matname[] = "su95_noGU";
     getMat(matname, &dsm[0][0][0][0], config.extension_penalty, 0);
 

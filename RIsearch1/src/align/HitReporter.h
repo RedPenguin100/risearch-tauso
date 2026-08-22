@@ -35,10 +35,10 @@ public:
     HitReporter(const unsigned char* query, const unsigned char* target, std::uint32_t n,
                 const QueryProfile<std::int32_t>& profile, const config_st& config,
                 const char* qname, const char* tname)
-        : m_query(query), m_target(target), m_n(n), m_profile(profile),
-          m_config(config), m_qname(qname), m_tname(tname),
-          m_reference(reference_from_matrix(config.mat_name)), m_matrices(config.tblen),
-          m_best(config.tblen + 1), m_hit(static_cast<int>(1.5 * config.tblen)),
+        : m_query(query), m_target(target), m_n(n), m_profile(profile), m_config(config),
+          m_qname(qname), m_tname(tname), m_reference(reference_from_matrix(config.mat_name)),
+          m_matrices(config.tblen), m_best(config.tblen + 1),
+          m_hit(static_cast<int>(1.5 * config.tblen)),
           /* Seven decimal fields, the energy and the separators, plus the two
              names: everything in a line whose length is known up front. */
           m_line_fixed(128 + std::strlen(qname) + std::strlen(tname))

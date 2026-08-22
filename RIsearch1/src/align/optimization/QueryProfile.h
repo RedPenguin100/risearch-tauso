@@ -40,7 +40,7 @@ public:
     };
 
 
-    QueryProfile(const unsigned char* query_sequence, std::uint32_t m, short dsm[6][6][6][6],
+    QueryProfile(const unsigned char* query_sequence, std::uint32_t m, Dsm& dsm,
                  bool has_positive_gap)
         : m_length(m), m_stride(m + 1 + kBlockSlack), m_m_from_m(kContexts * m_stride),
           m_m_from_ix(kContexts * m_stride), m_m_from_iy(kContexts * m_stride),

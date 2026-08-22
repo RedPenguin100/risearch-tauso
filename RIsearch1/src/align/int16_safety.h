@@ -42,7 +42,7 @@ constexpr std::int16_t neg_inf<std::int16_t>()
  * Iy[j-1][i] -- so such a run is as long as the target and the score has no bound
  * at all. Reachable: a negative -d turns the extension into a bonus.
  */
-inline bool is_pos_target_bulge(const short dsm[6][6][6][6])
+inline bool is_pos_target_bulge(const Dsm& dsm)
 {
     for (auto t_prev = 0u; t_prev < DSM_SIDE; t_prev++) {
         for (auto t_cur = 0u; t_cur < DSM_SIDE; t_cur++) {
@@ -60,7 +60,7 @@ inline bool is_pos_target_bulge(const short dsm[6][6][6][6])
  * int16_bound still needs this to be false, because it accumulates P as a sum of
  * terms it takes to be at most 0.
  */
-inline bool is_pos_query_bulge(const short dsm[6][6][6][6])
+inline bool is_pos_query_bulge(const Dsm& dsm)
 {
     for (auto q_prev = 0u; q_prev < DSM_SIDE; q_prev++) {
         for (auto q_cur = 0u; q_cur < DSM_SIDE; q_cur++) {
@@ -77,8 +77,7 @@ inline bool is_pos_query_bulge(const short dsm[6][6][6][6])
  * Only meaningful where neither bulge extension pays -- that is what makes those
  * two terms at most 0, which the derivation rests on.
  */
-inline long long int16_bound(const short dsm[6][6][6][6], const unsigned char* query_sequence,
-                             std::uint32_t m)
+inline long long int16_bound(const Dsm& dsm, const unsigned char* query_sequence, std::uint32_t m)
 {
     const short* const flat = &dsm[0][0][0][0];
     long long s = 0; /* largest positive entry              */
@@ -113,8 +112,7 @@ inline long long int16_bound(const short dsm[6][6][6][6], const unsigned char* q
  * Given dsm matrix, query sequence and its length, returns if the maximal score fits in
  * int16 wide lanes. We choose 30k as an upper boundary out of abundance of safety.
  */
-inline bool fits_int16(const short dsm[6][6][6][6], const unsigned char* query_sequence,
-                       std::uint32_t m)
+inline bool fits_int16(const Dsm& dsm, const unsigned char* query_sequence, std::uint32_t m)
 {
     return !is_pos_target_bulge(dsm) && !is_pos_query_bulge(dsm) &&
            int16_bound(dsm, query_sequence, m) <= 30000;
