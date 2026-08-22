@@ -71,7 +71,7 @@ public:
     /* The runs are read by value, so a sweep that keeps them narrower than the
        reporting does needs no widening pass of its own. */
     template<typename Score>
-    void report_sweep(const Score* hits_score, const Score* hits_pos, int threshold,
+    void report_sweep(const Score* run_scores, const Score* run_positions, int threshold,
                       const RunningMax& running_max)
     {
         report_top_hit_if_needed(running_max);
@@ -79,24 +79,16 @@ public:
         if (m_config.doSubopt) {
             auto j = static_cast<int>(m_n); /* the runs are 0-based over rows 1..n */
             while (j--) {
-                if (hits_score[j] <= threshold) {
+                if (run_scores[j] <= threshold) {
                     continue;
                 }
-                /* Look back up to `vicinity` rows and take the best of them. */
-                auto tmp = MIN(m_config.vicinity, j); /* how far back we may look   */
-                const auto resume_at = j - tmp++;     /* where the scan resumes     */
-                auto locMax = 0u;                     /* offset of the best so far  */
-                while (--tmp) {
-                    if (hits_score[j - tmp] > hits_score[j - locMax]) {
-                        locMax = tmp;
-                    }
-                }
-                j -= locMax; /* move onto the window's best */
+                const auto window_bottom = j - window_size(j);
+                const auto best = best_row_in_window(run_scores, j);
 
-                report(hits_pos[j], j + 1, hits_score[j], true);
+                report(run_positions[best], best + 1, run_scores[best], true);
 
-                /* Resume below the whole window, not just below the hit we reported. */
-                j = resume_at;
+                /* Resume below the whole window, not just below the row reported. */
+                j = window_bottom;
             }
         }
 
@@ -152,6 +144,28 @@ public:
     }
 
 private:
+    /* How far below row j a vicinity window reaches, which is `vicinity` rows
+       unless the run ends first. */
+    int window_size(int j) const
+    {
+        return m_config.vicinity < j ? m_config.vicinity : j;
+    }
+
+    /* The best row of the window that ends at row j. Ties go to the lowest row:
+       the walk starts at the bottom of the window and only a strictly better
+       row displaces what it holds. */
+    template<typename Score>
+    int best_row_in_window(const Score* run_scores, int j) const
+    {
+        auto best = j;
+        for (auto row = j - window_size(j); row < j; row++) {
+            if (run_scores[row] > run_scores[best]) {
+                best = row;
+            }
+        }
+        return best;
+    }
+
     void report_top_hit_if_needed(const RunningMax& running_max)
     {
         if (!(m_config.doSubopt && (m_config.filter_e || m_config.printShort > 1))) {
