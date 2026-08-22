@@ -234,10 +234,9 @@ private:
 
         switch (m_config.printShort) {
         case 1:
-            /* The two callers have always disagreed here: the best hit prints
+            /* The two hit kinds print differently here: the best hit prints
                five fields as (tbeg, tend); a suboptimal prints six, as
-               (tend, tbeg) plus the interaction string. Preserved so that
-               extracting this function cannot move any output. */
+               (tend, tbeg) plus the interaction string. */
             if (is_suboptimal) {
                 const char* const ia = m_hit.ali_ia.get();
                 write_line(std::strlen(ia), FMT_COMPILE("{}\t{}\t{}\t{}\t{:.2f}\t{}\n"), qb, qe, te,
@@ -258,8 +257,9 @@ private:
 
         default:
             /* score comes from the linear-space sweep, energy from the window
-               re-alignment above. They can disagree when the alignment is longer
-               than tblen, which is the open question the two TODOs marked. */
+               re-alignment above. The two disagree when the alignment is longer
+               than tblen, since the window then holds only its last tblen
+               positions. */
             printf("Free energy [kcal/mol]: %.2f (%d)\n", energy, score);
             printf("%d - %d\n", qb, qe); /* alignment in seq1 from to */
             printf("%s\n%s\n%s\n", m_hit.ali_seq1.get(), m_hit.ali_ia.get(), m_hit.ali_seq2.get());
@@ -279,7 +279,7 @@ private:
 
     /* Scratch, reused across every hit. */
     MatrixStore m_matrices;
-    /* Best M + close per query column; transpose_best_cell reads it. */
+    /* Best M + close per query column; find_best_cell reads it. */
     MallocRAII<std::int32_t> m_best;
     IA m_hit;
 

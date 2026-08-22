@@ -339,7 +339,8 @@ score_target(const unsigned char* target_sequence, const QueryProfile<int_type>&
              int* run_positions, std::size_t n, int threshold, RunningMax& running_max)
 {
 #if RISEARCH1_HAS_AVX2
-    // No upside from using AVX2 for small target sizes
+    /* A block covers the query positions from 2 upwards, so a query shorter
+       than one block has none to fill and the scalar sweep is the cheaper way. */
     if (profile.query_length() <= v_lanes<int_type>()) {
         score_target_scalar<int_type>(target_sequence, profile, M, Ix, Iy, run_scores,
                                       run_positions, n, threshold, running_max);

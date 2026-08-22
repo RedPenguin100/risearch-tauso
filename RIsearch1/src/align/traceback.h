@@ -66,13 +66,17 @@ static void emit_target_bulge(IA* hit, int l, ReversedSequence t, int j)
 }
 
 
-/**
- * The old version was transposed. When transposing we unlocked performance, but changed
- * the order of the "best hits", so here we transpose it back without losing major performance.
+/* The cell the backtrack starts from: the best score over the whole window, and
+ * the (query, target) position it was reached at.
+ *
+ * The fill leaves the best score per query column, which fixes the score and the
+ * column but not the target position, so the column's rows are scanned for the
+ * one that reaches it. Ties go to the lowest target position, and to target
+ * position 1 ahead of any of them, which is the order the hits are reported in.
  */
-static RunningMax transpose_best_cell(ReversedSequence target_seq, int m, int n, std::int32_t** M,
-                                      const QueryProfile<std::int32_t>& profile, int q_offset,
-                                      const std::int32_t* best, const RunningVectorMax& first_row)
+static RunningMax find_best_cell(ReversedSequence target_seq, int m, int n, std::int32_t** M,
+                                 const QueryProfile<std::int32_t>& profile, int q_offset,
+                                 const std::int32_t* best, const RunningVectorMax& first_row)
 {
     RunningVectorMax inverted_best{};
     inverted_best.set(best[1], 1);
@@ -400,15 +404,15 @@ static void ris_fill(ReversedSequence target_seq, int m, int n, std::int32_t** M
     ris_fill_scalar(target_seq, m, n, M, Ix, Iy, profile, q_offset, best, first_row);
 }
 
-static void
-RIs(const unsigned char* query_seq, /* query sequence - numeric representation */
-    ReversedSequence target_seq,    /* target sequence - reversed */
-    int m,                          /* query seq length */
-    int n,                          /* target seq length */
-    IA* hit,                        /* pointer to struct, fill results */
-    const config_st& config, std::int32_t** M, std::int32_t** Ix, std::int32_t** Iy,
-    const QueryProfile<std::int32_t>& profile, int q_offset,
-    std::int32_t* best // We use `best` parameter to preserve output order of old C version
+static void RIs(const unsigned char* query_seq, /* query sequence - numeric representation */
+                ReversedSequence target_seq,    /* target sequence - reversed */
+                int m,                          /* query seq length */
+                int n,                          /* target seq length */
+                IA* hit,                        /* pointer to struct, fill results */
+                const config_st& config, std::int32_t** M, std::int32_t** Ix, std::int32_t** Iy,
+                const QueryProfile<std::int32_t>& profile, int q_offset,
+                std::int32_t* best /* scratch: the best M + close per query column, which
+                                      find_best_cell reads */
 )
 {
     /* The matrices are indexed [target][query] so that a row fixes the target
@@ -420,7 +424,7 @@ RIs(const unsigned char* query_seq, /* query sequence - numeric representation *
     RunningVectorMax first_row{};
     ris_fill(target_seq, m, n, M, Ix, Iy, profile, q_offset, best, first_row);
     const auto running_max =
-        transpose_best_cell(target_seq, m, n, M, profile, q_offset, best, first_row);
+        find_best_cell(target_seq, m, n, M, profile, q_offset, best, first_row);
 
 
     /*backtrack*/
@@ -526,7 +530,7 @@ RIs(const unsigned char* query_seq, /* query sequence - numeric representation *
 
     /* reverse sequences in the end*/
 
-    if (l > 0) { // fixes a pre-existing bug, access to invalid memory [-1]
+    if (l > 0) { // an empty alignment has no last character to reverse from
         reverse_inplace(hit->ali_seq1.get(), l - 1);
         reverse_inplace(hit->ali_ia.get(), l - 1);
         reverse_inplace(hit->ali_seq2.get(), l - 1);
