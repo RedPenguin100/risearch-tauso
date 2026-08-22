@@ -2,7 +2,6 @@
 
 #include <cstdio>
 #include <cstring>
-// ReSharper disable once CppUnusedIncludeDirective
 #include <cstdlib>
 
 #include "nucleotide.h" /* GAP */

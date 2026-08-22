@@ -1,8 +1,6 @@
 #pragma once
 
-// ReSharper disable once CppUnusedIncludeDirective
 #include <cstddef>
-// ReSharper disable once CppUnusedIncludeDirective
 #include <cstdlib>
 
 #include "memory/alloc.hpp"
@@ -73,13 +71,3 @@ public:
 private:
     T* m_buffer;
 };
-
-template<typename T>
-static void reserve(MallocRAII<T>& buffer, std::size_t& capacity, std::size_t wanted)
-{
-    if (wanted <= capacity) {
-        return;
-    }
-    buffer.reset(static_cast<T*>(malloc(wanted * sizeof(T))));
-    capacity = wanted;
-}
