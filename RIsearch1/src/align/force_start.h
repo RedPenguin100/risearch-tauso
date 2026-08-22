@@ -6,7 +6,6 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "InteractionAlignment.h"
 #include "debug_print.h"
 #include "energy.hpp"
 #include "memory/ByteBuffer.hpp"
@@ -53,7 +52,6 @@ static void RIs_force_start_end_weighted(int force_start_val, const ByteBuffer& 
                                          const ByteBuffer& target_sequence,
                                          const float* weights, /*array of weights */
                                          const Dsm& dsm,       /* scoring matrix */
-                                         [[maybe_unused]] IA*, /* pointer to struct, fill results */
                                          const char* matname)
 {
     const auto* qseq = query_sequence.unsigned_data();
@@ -403,8 +401,6 @@ static void RIs_force_start_end_init(
     const char* matname                   /* name of the scoring matrix */
 )
 {
-    auto testmax = (int)(1.5 * target_sequence_ix.size());
-    IA maxHit(testmax);
     ByteBuffer reversed_target;
 
     /*reverting seq2 (target) */
@@ -425,11 +421,11 @@ static void RIs_force_start_end_init(
         }
         if (size_wC20_5p_3p == query_sequence_ix.size() - 1) {
             RIs_force_start_end_weighted(force_start_val, query_sequence_ix, reversed_target,
-                                         &wC20_5p_3p[0], dsm, &maxHit, matname);
+                                         &wC20_5p_3p[0], dsm, matname);
         } else {
             RIs_force_start_end_weighted(
                 force_start_val, query_sequence_ix, reversed_target,
-                &wC20_5p_3p[size_wC20_5p_3p + 1 - query_sequence_ix.size()], dsm, &maxHit, matname);
+                &wC20_5p_3p[size_wC20_5p_3p + 1 - query_sequence_ix.size()], dsm, matname);
         }
     } /*
          else if (!strcmp(pos_weights, "test")){
@@ -454,7 +450,7 @@ static void RIs_force_start_end_init(
             noweight[i] = 1.0;
         }
         RIs_force_start_end_weighted(force_start_val, query_sequence_ix, reversed_target,
-                                     &noweight[0], dsm, &maxHit, matname);
+                                     &noweight[0], dsm, matname);
     } else {
         fprintf(stderr, "Undefined weights array. Existing weights verctors are CRISPR_20nt_5p_3p "
                         "and noweights. To add a new weights vector, create an array in weights.c "

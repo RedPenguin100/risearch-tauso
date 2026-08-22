@@ -424,9 +424,7 @@ RIs(const unsigned char* query_seq, /* query sequence - numeric representation *
 
 
     /*backtrack*/
-    // we write to capacity and capacity + 1 indices, so we need -2
-    // as a buffer zone.
-    const auto capacity = static_cast<int>(1.5 * config.tblen) - 2;
+    const auto capacity = max_alignment_length(config.tblen);
 
     auto i = running_max.pos_i;
     auto j = running_max.pos_j;

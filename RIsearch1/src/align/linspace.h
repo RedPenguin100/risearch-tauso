@@ -44,9 +44,6 @@ RIs_linSpace(const ByteBuffer& query_sequence_ix,  // query sequence numerical r
     MallocRAII<int> hits_score(n);
     MallocRAII<int> hits_pos(n);
 
-    const auto alignment_capacity = static_cast<int>(1.5 * config.tblen);
-    IA maxHit(alignment_capacity);
-
     /* matrices for alignment scores ending in different states */
     // Since we only need 2 rows we can optimize the memory layout.
     MallocRAII<int_type> dp_rows(6 * (m + 1));
