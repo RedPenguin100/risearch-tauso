@@ -9,9 +9,9 @@
 #include "InteractionAlignment.h"
 #include "debug_print.h"
 #include "energy.hpp"
-#include "matrix_operations.h"
 #include "memory/ByteBuffer.hpp"
 #include "memory/MallocRAII.hpp"
+#include "memory/Matrix.hpp"
 #include "nucleotide.h"
 #include "operations.h"
 #include "symbols.h"
@@ -71,10 +71,10 @@ static void RIs_force_start_end_weighted(int force_start_val, const ByteBuffer& 
                                at any position, due to the force start. */
 
     /* matrices for alignment scores ending in different states */
-    float** M = allocFloatMatrix(m + 1, n + 1); /* (Mis)Match */
-    float** Ix =
-        allocFloatMatrix(m + 1, n + 1); /* Insertion in x(=query), so x paired to gap (in y) */
-    float** Iy = allocFloatMatrix(m + 1, n + 1); /* Insertion(=bulge) in y(=target) */
+    Matrix<float> M(m + 1, n + 1); /* (Mis)Match */
+    /* Insertion in x(=query), so x paired to gap (in y) */
+    Matrix<float> Ix(m + 1, n + 1);
+    Matrix<float> Iy(m + 1, n + 1); /* Insertion(=bulge) in y(=target) */
 
     Ix[0][0] = Iy[0][0] = 0;
     M[0][0] = force_start_val;
@@ -222,11 +222,11 @@ static void RIs_force_start_end_weighted(int force_start_val, const ByteBuffer& 
     }
 #ifdef DEBUG
     printf("M matrix:\n");
-    printfloatMat(M, m + 1, n + 1, qseq, tseq);
+    printfloatMat(M.get(), m + 1, n + 1, qseq, tseq);
     printf("Bq matrix:\n");
-    printfloatMat(Ix, m + 1, n + 1, qseq, tseq);
+    printfloatMat(Ix.get(), m + 1, n + 1, qseq, tseq);
     printf("Bt matrix:\n");
-    printfloatMat(Iy, m + 1, n + 1, qseq, tseq);
+    printfloatMat(Iy.get(), m + 1, n + 1, qseq, tseq);
 #endif
     printf("***Structures and Energies***\n");
     /*backtrack */
@@ -245,7 +245,7 @@ static void RIs_force_start_end_weighted(int force_start_val, const ByteBuffer& 
 
         /*printf("col : %d\n",colj); */
         const auto max_score = find_max_value_f(
-            M, Ix, Iy, &k, &i, colj, m, dsm, qseq,
+            M.get(), Ix.get(), Iy.get(), &k, &i, colj, m, dsm, qseq,
             tseq); /*given arrays representing columns, we want to find the row position in which
                       the max score is reached. K is 0-1-2 M Ix Iy - should always be 0 to begin
                       with. NOTE: in this new version we search only the maximums in row m (last
@@ -393,10 +393,6 @@ static void RIs_force_start_end_weighted(int force_start_val, const ByteBuffer& 
         printf("Free energy [kcal/mol] (No extension penalty): %.2f (%f)\n", energy,
                static_cast<double>(max_score - force_start_val));
     }
-
-    freeFloatMatrix(M, m + 1);
-    freeFloatMatrix(Ix, m + 1);
-    freeFloatMatrix(Iy, m + 1);
 }
 
 static void RIs_force_start_end_init(
