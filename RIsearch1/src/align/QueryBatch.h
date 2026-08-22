@@ -12,6 +12,7 @@
 #include "cli/cli.h"
 #include "memory/ByteBuffer.hpp"
 #include "memory/GrowableBuffer.hpp"
+#include "pair_header.h"
 
 /**
  * Queries held back so that several can be swept against one target together.
@@ -60,9 +61,8 @@ public:
         for (auto k = 0u; k < m_count; k++) {
             const Entry& e = m_entries[k];
             if (config.printShort < 2) {
-                printf("\n\nquery %d: %s (%u nts) vs. target %d: %s (%u nts)\n\n", e.query_count,
-                       e.name.data(), e.len, target_count, tname,
-                       static_cast<std::uint32_t>(target_seq.size()));
+                print_pair_header(e.name.data(), e.query_count, e.len, tname, target_count,
+                                  static_cast<std::uint32_t>(target_seq.size()));
             }
             if (swept) {
                 report_query(k, e, target_seq, dsm, tname, config);
