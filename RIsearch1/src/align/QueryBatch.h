@@ -9,6 +9,7 @@
 #include "align/first_row.h"
 #include "align/int16_safety.h"
 #include "align/optimization/BatchedQueryProfile.h"
+#include "align/optimization/QueryProfileCache.h"
 #include "cli/cli.h"
 #include "memory/ByteBuffer.hpp"
 #include "memory/GrowableBuffer.hpp"
@@ -53,7 +54,7 @@ public:
     }
 
     void run(const ByteBuffer& target_seq, Dsm& dsm, const char* tname, int target_count,
-             const config_st& config)
+             const config_st& config, QueryProfileCache& profiles)
     {
         m_exact_rows = config.doSubopt && config.vicinity > 0;
         const bool swept = sweep_impl(target_seq, dsm, config.min_score);
@@ -65,7 +66,7 @@ public:
                                   static_cast<std::uint32_t>(target_seq.size()));
             }
             if (swept) {
-                report_query(k, e, target_seq, dsm, tname, config);
+                report_query(k, e, target_seq, dsm, tname, config, profiles);
             } else {
                 run_alignment(e.seq, target_seq, dsm, e.name.data(), tname, config);
             }
@@ -400,13 +401,15 @@ private:
        sweep's runs are widened into the int arrays HitReporter reads, and the
        traceback that follows is the int32 one. */
     void report_query(unsigned lane, const Entry& e, const ByteBuffer& target_seq, Dsm& dsm,
-                      const char* tname, const config_st& config)
+                      const char* tname, const config_st& config, QueryProfileCache& profiles)
     {
         const auto m = static_cast<std::uint32_t>(e.seq.size());
         const auto* query = e.seq.unsigned_data();
         const auto* target = target_seq.unsigned_data();
 
-        const QueryProfile<std::int32_t> profile(query, m, dsm, has_positive_gap(dsm));
+        /* Resolved from the query and the matrix only, so the cache hands back
+           the same one for every target this query is swept against. */
+        const QueryProfile<std::int32_t>& profile = profiles.get(e.query_count, query, m, dsm);
 
         RunningMax running_max{};
         running_max.set(m_best_score[lane], m_best_i[lane], m_best_j[lane]);
