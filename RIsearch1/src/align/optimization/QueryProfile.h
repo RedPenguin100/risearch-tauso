@@ -142,10 +142,20 @@ public:
     RowView row(unsigned ctx) const
     {
         const auto off = m_offsets[ctx];
-        return {m_m_from_m.get() + off,  m_m_from_ix.get() + off, m_m_from_iy.get() + off,
-                m_m_open.get() + off,    m_close.get() + off,     m_iy_from_m.get() + off,
-                m_ix_from_m.get() + off, m_ix_extend.get(),       m_ix_from_m_scan.get() + off,
-                m_ix_prefix.get(),       m_iy_extend[ctx]};
+
+        RowView view;
+        view.m_from_m = m_m_from_m.get() + off;
+        view.m_from_ix = m_m_from_ix.get() + off;
+        view.m_from_iy = m_m_from_iy.get() + off;
+        view.m_open = m_m_open.get() + off;
+        view.close = m_close.get() + off;
+        view.iy_from_m = m_iy_from_m.get() + off;
+        view.ix_from_m = m_ix_from_m.get() + off;
+        view.ix_extend = m_ix_extend.get();
+        view.ix_from_m_scan = m_ix_from_m_scan.get() + off;
+        view.ix_prefix = m_ix_prefix.get();
+        view.iy_extend = m_iy_extend[ctx];
+        return view;
     }
 
 private:
