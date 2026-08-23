@@ -138,11 +138,6 @@ public:
         finalize_report();
     }
 
-    int hitcount() const
-    {
-        return m_hitcount;
-    }
-
 private:
     /* How far below row j a vicinity window reaches, which is `vicinity` rows
        unless the run ends first. */
