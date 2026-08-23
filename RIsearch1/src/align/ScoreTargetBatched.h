@@ -129,7 +129,7 @@ main_dp_column_batched(const BatchedQueryProfile::ColumnTerms& t, __m256i m_last
    the scan above over them reproduces U[1][i] exactly. That is what arrives here
    as ix_from_m_scan_row1, and it is read only when j == 2.
 
-   hs16 and hp16 take target position j at [(j - 1) * queries]. */
+   run_scores and run_positions take target position j at [(j - 1) * queries]. */
 /* kDefer: a row's close is added once at the end as a bound rather than per
    column. Not available where the reporting reads a non-clearing row's score,
    which is what a vicinity window does. */
@@ -137,8 +137,8 @@ template<bool kDefer>
 __attribute__((target("avx2"))) static void
 score_target_batched(const unsigned char* target_sequence, const BatchedQueryProfile& profile,
                      std::int16_t* const* M, std::int16_t* const* Iy,
-                     const std::int16_t* ix_from_m_scan_row1, std::int16_t* hs16,
-                     std::int16_t* hp16, std::size_t n, int threshold,
+                     const std::int16_t* ix_from_m_scan_row1, std::int16_t* run_scores,
+                     std::int16_t* run_positions, std::size_t n, int threshold,
                      BatchedRunningMax& running_max)
 {
     const auto m = profile.m();
@@ -256,8 +256,8 @@ score_target_batched(const unsigned char* target_sequence, const BatchedQueryPro
             const __m256i wanted = v_greater_than<std::int16_t>(exact, gate);
             const __m256i row_pos = v_any(wanted) ? row_max_position(m_cur, T, m, exact) : one;
 
-            v_vec_store(hs16 + (j - 1) * queries, exact);
-            v_vec_store(hp16 + (j - 1) * queries, row_pos);
+            v_vec_store(run_scores + (j - 1) * queries, exact);
+            v_vec_store(run_positions + (j - 1) * queries, row_pos);
 
             running_max.score = v_max<std::int16_t>(running_max.score, exact);
             gate = v_min<std::int16_t>(running_max.score, v_threshold);
@@ -270,7 +270,7 @@ score_target_batched(const unsigned char* target_sequence, const BatchedQueryPro
         } else {
             /* The position is read only where a row reported, and such a row went
                the other way, so this one's is left as it lies. */
-            v_vec_store(hs16 + (j - 1) * queries, bound);
+            v_vec_store(run_scores + (j - 1) * queries, bound);
         }
 
         /* The row just written becomes the row read. */

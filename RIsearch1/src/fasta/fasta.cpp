@@ -1,87 +1,24 @@
-/* Simple API for FASTA file reading
- * for Bio5495/BME537 Computational Molecular Biology
- * SRE, Sun Sep  8 05:35:11 2002 [AA2721, transatlantic]
- * CVS $Id$
- */
-
-
-/* Function: OpenFASTA(), ReadFASTA(), CloseFASTA().
- * Date:     SRE, Sun Sep  8 06:39:26 2002 [AA2721, transatlantic]
+/* A FASTA reader with one line of lookahead.
  *
- * Purpose:  A very rudimentary FASTA file reading API. Designed
- *           for simplicity and clarity, not for robustness.
+ * FASTA has no end-of-record marker: a record is finished only once the next
+ * record's header line has been read. That line is kept in the FASTAFILE, so
+ * the next call starts from it instead of having to push it back. Keeping it
+ * per file rather than in a static is what lets two files be read at once.
  *
- *           The API is:
+ *     ffp = OpenFASTA(seqfile);
+ *     while (ReadFASTA(ffp, seq, name)) { ... }
+ *     CloseFASTA(ffp);
  *
- *           ffp = OpenFASTA(seqfile);
- *           while (ReadFASTA(ffp, seq, name))
- *           {
- *             do stuff with sequence;
- *           }
- *           CloseFASTA(ffp);
+ * OpenFASTA answers null if the file cannot be read or is empty. ReadFASTA
+ * answers false once the file holds no further record.
  *
- * Args:
- *           seqfile   - name of a FASTA file to open.
- *           seq       - RETURN: one sequence
- *           name      - RETURN: name of the sequence
- *           ffp       - ptr to a FASTAFILE object.
+ * A line may be at most FASTA_MAXLINE bytes. A longer sequence line is read as
+ * two, which changes nothing, but a longer header has its name truncated.
  *
- * Commentary:
- *           The basic problem with reading FASTA files is that there is
- *           no end-of-record indicator. When you're reading sequence n,
- *           you don't know you're done until you've read the header line
- *           for sequence n+1, which you won't parse 'til later (when
- *           you're reading in the sequence n+1). One common trick for
- *           this is to implement a one-line "lookahead" buffer that you
- *           can peek at, before parsing later.
+ * The name is the first whitespace-separated token after the '>', found with
+ * strtok, which is not reentrant -- one thread may read at a time.
  *
- *           This buffer is kept in a small structure (a FASTAFILE), rather
- *           than in a static char[] in the function. This allows
- *           us to have multiple FASTA files open at once. The static approach
- *           would only allow us to have one file open at a time. ANSI C
- *           predates the widespread use of parallel programming. It was
- *           not overly concerned about the drawbacks of statics. Today,
- *           though, you should keep in mind that you may someday want to
- *           turn your program into a multithreaded, parallel program, and
- *           all functions in parallelized code must be "reentrant": able to
- *           be called a second time - with different arguments,
- *           and while the code in the first function call is still executing! -
- *           without overwriting or corrupting any static storage in the
- *           function. Statics have fewer uses now (for example, to
- *           test that some initialization code for a function is run once
- *           and only once.)
- *
- * Limitations:
- *           There is no error handling, for clarity's sake. Also,
- *           the parser is brittle. Improper FASTA files (for instance,
- *           blank lines between records) will cause unexpected
- *           behavior. Real file parsers are more complex.
- *           In real life, they have to deal with absolutely anything the user might
- *           pass as a "FASTA file"; and either parse it correctly,
- *           or detect that it's an invalid format and fail cleanly.
- *
- *           Lines are read in from the file using ANSI C's fgets(). fgets()
- *           requires a maximum buffer length (here, FASTA_MAXLINE, which is
- *           defined as 512 in bio5495.h). Some FASTA files have very long
- *           description lines, however; notably the NCBI NR database. Static
- *           limitations on things like line or sequence lengths should be
- *           avoided. An example of a replacement for fgets() that dynamically
- *           allocates its buffer size and allows any line length is
- *           SQUID's sre_fgets().
- *
- *           We use ANSI C's strtok() to parse the sequence name out of the line.
- *           strtok() is deprecated in modern programs because it is not threadsafe.
- *           (See comments above.) An example of a threadsafe version is
- *           SQUID's sre_strtok().
- *
- * Returns:
- *           OpenFASTA() returns a FASTAFILE pointer, or NULL on failure (for
- *           instance, if the file doesn't exist, or isn't readable).
- *
- *           ReadFASTA() returns true on success, or false if there are no
- *           more sequences to read in the file.
- *
- *           CloseFASTA() "always succeeds" and returns void.
+ * Derived from the FASTA reader in SRE's Bio5495/BME537 course material.
  */
 
 #include "fasta.h"
@@ -91,6 +28,7 @@
 #include <cstring>
 
 #include "fasta/ResidueTable.h"
+#include "memory/alloc.hpp"
 
 
 namespace {
@@ -123,19 +61,23 @@ bool tolerated_in_sequence(unsigned char c)
 FASTAFILE* OpenFASTA(const char* seqfile)
 {
     FASTAFILE* ffp = reinterpret_cast<FASTAFILE*>(malloc(sizeof(FASTAFILE)));
+    if (ffp == nullptr) {
+        out_of_memory("a FASTA reader", sizeof(FASTAFILE));
+    }
 
     if (strcmp(seqfile, "-")) {        /*returns 0/FALSE if they are same! */
-        ffp->fp = fopen(seqfile, "r"); /* Assume seqfile exists & readable!   */
+        ffp->fp = fopen(seqfile, "r"); /* checked below */
     } else {
         ffp->fp = stdin;
     }
-    if (ffp->fp == NULL) {
+    if (ffp->fp == nullptr) {
         free(ffp);
-        return NULL;
+        return nullptr;
     }
-    if ((fgets(ffp->buffer, FASTA_MAXLINE, ffp->fp)) == NULL) {
+    /* Prime the lookahead with the first line, which every record starts from. */
+    if (fgets(ffp->buffer, FASTA_MAXLINE, ffp->fp) == nullptr) {
         free(ffp);
-        return NULL;
+        return nullptr;
     }
     return ffp;
 }
@@ -201,17 +143,3 @@ void CloseFASTA(FASTAFILE* ffp)
     fclose(ffp->fp);
     free(ffp);
 }
-
-
-/* what follows is a useful idiom: when you're writing a .c file that's supposed
- * to be a module of library functions, include one or more "test drivers".
- * These are small main()'s, normally ifdef'ed out of the code, that
- * enable the .c file to be compiled into one or more standalone test programs.
- * This lets you test your module in relative isolation, which tends
- * to lead to faster debugging and more robust code. It also
- * provides a convenient way to document a working minimal API: for example,
- * the main() here is a minimal FASTA reader. And it also tends to
- * have a useful psychological effect on you: it tends to encourage you
- * to simplify your APIs, so that small test programs can demonstrate
- * the full power of the API.
- */

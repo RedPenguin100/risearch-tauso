@@ -35,10 +35,10 @@ public:
     HitReporter(const unsigned char* query, const unsigned char* target, std::uint32_t n,
                 const QueryProfile<std::int32_t>& profile, const config_st& config,
                 const char* qname, const char* tname)
-        : m_query(query), m_target(target), m_n(n), m_profile(profile),
-          m_config(config), m_qname(qname), m_tname(tname),
-          m_reference(reference_from_matrix(config.mat_name)), m_matrices(config.tblen),
-          m_best(config.tblen + 1), m_hit(static_cast<int>(1.5 * config.tblen)),
+        : m_query(query), m_target(target), m_n(n), m_profile(profile), m_config(config),
+          m_qname(qname), m_tname(tname), m_reference(reference_from_matrix(config.mat_name)),
+          m_matrices(config.tblen), m_best(config.tblen + 1),
+          m_hit(alignment_capacity(config.tblen)),
           /* Seven decimal fields, the energy and the separators, plus the two
              names: everything in a line whose length is known up front. */
           m_line_fixed(128 + std::strlen(qname) + std::strlen(tname))
@@ -71,7 +71,7 @@ public:
     /* The runs are read by value, so a sweep that keeps them narrower than the
        reporting does needs no widening pass of its own. */
     template<typename Score>
-    void report_sweep(const Score* hits_score, const Score* hits_pos, int threshold,
+    void report_sweep(const Score* run_scores, const Score* run_positions, int threshold,
                       const RunningMax& running_max)
     {
         report_top_hit_if_needed(running_max);
@@ -79,24 +79,16 @@ public:
         if (m_config.doSubopt) {
             auto j = static_cast<int>(m_n); /* the runs are 0-based over rows 1..n */
             while (j--) {
-                if (hits_score[j] <= threshold) {
+                if (run_scores[j] <= threshold) {
                     continue;
                 }
-                /* Look back up to `vicinity` rows and take the best of them. */
-                auto tmp = MIN(m_config.vicinity, j); /* how far back we may look   */
-                const auto resume_at = j - tmp++;     /* where the scan resumes     */
-                auto locMax = 0u;                     /* offset of the best so far  */
-                while (--tmp) {
-                    if (hits_score[j - tmp] > hits_score[j - locMax]) {
-                        locMax = tmp;
-                    }
-                }
-                j -= locMax; /* move onto the window's best */
+                const auto window_bottom = j - window_size(j);
+                const auto best = best_row_in_window(run_scores, j);
 
-                report(hits_pos[j], j + 1, hits_score[j], true);
+                report(run_positions[best], best + 1, run_scores[best], true);
 
-                /* Resume below the whole window, not just below the hit we reported. */
-                j = resume_at;
+                /* Resume below the whole window, not just below the row reported. */
+                j = window_bottom;
             }
         }
 
@@ -146,12 +138,29 @@ public:
         finalize_report();
     }
 
-    int hitcount() const
+private:
+    /* How far below row j a vicinity window reaches, which is `vicinity` rows
+       unless the run ends first. */
+    int window_size(int j) const
     {
-        return m_hitcount;
+        return m_config.vicinity < j ? m_config.vicinity : j;
     }
 
-private:
+    /* The best row of the window that ends at row j. Ties go to the lowest row:
+       the walk starts at the bottom of the window and only a strictly better
+       row displaces what it holds. */
+    template<typename Score>
+    int best_row_in_window(const Score* run_scores, int j) const
+    {
+        auto best = j;
+        for (auto row = j - window_size(j); row < j; row++) {
+            if (run_scores[row] > run_scores[best]) {
+                best = row;
+            }
+        }
+        return best;
+    }
+
     void report_top_hit_if_needed(const RunningMax& running_max)
     {
         if (!(m_config.doSubopt && (m_config.filter_e || m_config.printShort > 1))) {
@@ -220,10 +229,9 @@ private:
 
         switch (m_config.printShort) {
         case 1:
-            /* The two callers have always disagreed here: the best hit prints
+            /* The two hit kinds print differently here: the best hit prints
                five fields as (tbeg, tend); a suboptimal prints six, as
-               (tend, tbeg) plus the interaction string. Preserved so that
-               extracting this function cannot move any output. */
+               (tend, tbeg) plus the interaction string. */
             if (is_suboptimal) {
                 const char* const ia = m_hit.ali_ia.get();
                 write_line(std::strlen(ia), FMT_COMPILE("{}\t{}\t{}\t{}\t{:.2f}\t{}\n"), qb, qe, te,
@@ -244,8 +252,9 @@ private:
 
         default:
             /* score comes from the linear-space sweep, energy from the window
-               re-alignment above. They can disagree when the alignment is longer
-               than tblen, which is the open question the two TODOs marked. */
+               re-alignment above. The two disagree when the alignment is longer
+               than tblen, since the window then holds only its last tblen
+               positions. */
             printf("Free energy [kcal/mol]: %.2f (%d)\n", energy, score);
             printf("%d - %d\n", qb, qe); /* alignment in seq1 from to */
             printf("%s\n%s\n%s\n", m_hit.ali_seq1.get(), m_hit.ali_ia.get(), m_hit.ali_seq2.get());
@@ -265,7 +274,7 @@ private:
 
     /* Scratch, reused across every hit. */
     MatrixStore m_matrices;
-    /* Best M + close per query column; transpose_best_cell reads it. */
+    /* Best M + close per query column; find_best_cell reads it. */
     MallocRAII<std::int32_t> m_best;
     IA m_hit;
 

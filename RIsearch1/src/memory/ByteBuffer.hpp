@@ -4,6 +4,8 @@
 #include <cstring>
 #include <utility> // for std::exchange
 
+#include "memory/alloc.hpp"
+
 /**
  * Lightweight wrapper for char / byte pointers.
  *
@@ -135,7 +137,11 @@ public:
         std::size_t capacity = m_capacity ? m_capacity : 128;
         while (capacity < wanted)
             capacity *= 2;
-        m_data = static_cast<char*>(std::realloc(m_data, capacity));
+        char* const grown = static_cast<char*>(std::realloc(m_data, capacity));
+        if (grown == nullptr) {
+            out_of_memory("a sequence buffer", capacity);
+        }
+        m_data = grown;
         m_capacity = capacity;
     }
 

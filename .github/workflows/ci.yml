@@ -40,3 +40,29 @@ jobs:
           cmake -S RIsearch1 -B /tmp/wheelbuild -DCMAKE_BUILD_TYPE=Release -DRISEARCH_BUILD_TESTS=OFF
           cmake --build /tmp/wheelbuild --target RIsearch -j
           test -x RIsearch1/bin/RIsearch
+
+  gcc10:
+    name: Build and test with GCC 10 (the wheel compiler)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The wheels ship from manylinux2014, whose toolchain is GCC 10, while the
+      # job above uses whatever ubuntu-latest carries -- GCC 13 at present. Code
+      # that only compiles on the newer one would pass CI and still break every
+      # wheel, so the compiler that actually builds them gets its own job.
+      #
+      # Run through `docker run` rather than a `container:` job: manylinux2014 is
+      # CentOS 7 (glibc 2.17) and the runner's node-based actions cannot start
+      # there, so the checkout happens on the host and only the build goes in.
+      - name: Build and test in manylinux2014
+        run: |
+          docker run --rm -v "$PWD":/io -w /io \
+            quay.io/pypa/manylinux2014_x86_64 \
+            bash -c '
+              set -e
+              cmake -S RIsearch1 -B /tmp/build -DCMAKE_BUILD_TYPE=Release
+              cmake --build /tmp/build -j"$(nproc)"
+              /tmp/build/tests/risearch1_tests
+            '

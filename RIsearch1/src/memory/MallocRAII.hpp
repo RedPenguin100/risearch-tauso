@@ -1,9 +1,9 @@
 #pragma once
 
-// ReSharper disable once CppUnusedIncludeDirective
 #include <cstddef>
-// ReSharper disable once CppUnusedIncludeDirective
 #include <cstdlib>
+
+#include "memory/alloc.hpp"
 
 template<typename T>
 class MallocRAII {
@@ -14,6 +14,9 @@ public:
 
     explicit MallocRAII(size_t n) : m_buffer(static_cast<T*>(malloc(n * sizeof(T))))
     {
+        if (m_buffer == nullptr && n != 0) {
+            out_of_memory("a buffer", n * sizeof(T));
+        }
     }
 
     ~MallocRAII()
@@ -68,13 +71,3 @@ public:
 private:
     T* m_buffer;
 };
-
-template<typename T>
-static void reserve(MallocRAII<T>& buffer, std::size_t& capacity, std::size_t wanted)
-{
-    if (wanted <= capacity) {
-        return;
-    }
-    buffer.reset(static_cast<T*>(malloc(wanted * sizeof(T))));
-    capacity = wanted;
-}

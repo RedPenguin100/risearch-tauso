@@ -8,9 +8,8 @@
 #include "cli/cli.h"
 #include "memory/ByteBuffer.hpp"
 
-static void run_alignment(const ByteBuffer& query_seq, const ByteBuffer& target_seq,
-                          short (&dsm)[6][6][6][6], const char* nameQ, const char* nameT,
-                          const config_st& config)
+static void run_alignment(const ByteBuffer& query_seq, const ByteBuffer& target_seq, Dsm& dsm,
+                          const char* nameQ, const char* nameT, const config_st& config)
 {
     // can't align empty sequences
     if (query_seq.is_empty() || target_seq.is_empty()) {

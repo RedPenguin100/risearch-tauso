@@ -2,9 +2,12 @@
 
 #include "fasta.h"
 
+/* Owns a FASTAFILE for the length of a scope. handle() is null if the file
+   could not be opened, which is what a caller checks before reading. */
 class FastaRAII {
 public:
     explicit FastaRAII(const char* sequence_file);
+    ~FastaRAII();
 
     FastaRAII(const FastaRAII&) = delete;
     FastaRAII(FastaRAII&&) = delete;
@@ -13,8 +16,6 @@ public:
 
     FASTAFILE* handle() const;
 
-    ~FastaRAII();
-
-    const char* m_sequence_file;
+private:
     FASTAFILE* m_fasta_file_handle;
 };

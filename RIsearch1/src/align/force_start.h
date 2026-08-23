@@ -6,12 +6,11 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "InteractionAlignment.h"
 #include "debug_print.h"
 #include "energy.hpp"
-#include "matrix_operations.h"
 #include "memory/ByteBuffer.hpp"
 #include "memory/MallocRAII.hpp"
+#include "memory/Matrix.hpp"
 #include "nucleotide.h"
 #include "operations.h"
 #include "symbols.h"
@@ -25,7 +24,7 @@ static void fill_char_array(char* buf, std::uint32_t length)
 
 
 static float find_max_value_f(float** M, float** Ix, float** Iy, std::uint32_t* k, std::uint32_t* i,
-                              std::size_t j, std::size_t n, const short dsm[6][6][6][6],
+                              std::size_t j, std::size_t n, const Dsm& dsm,
                               const unsigned char* qseq, const unsigned char* tseq)
 {
     float max = 0.0;
@@ -51,9 +50,8 @@ static float find_max_value_f(float** M, float** Ix, float** Iy, std::uint32_t* 
 
 static void RIs_force_start_end_weighted(int force_start_val, const ByteBuffer& query_sequence,
                                          const ByteBuffer& target_sequence,
-                                         const float* weights,        /*array of weights */
-                                         const short dsm[6][6][6][6], /* scoring matrix */
-                                         [[maybe_unused]] IA*, /* pointer to struct, fill results */
+                                         const float* weights, /*array of weights */
+                                         const Dsm& dsm,       /* scoring matrix */
                                          const char* matname)
 {
     const auto* qseq = query_sequence.unsigned_data();
@@ -71,10 +69,10 @@ static void RIs_force_start_end_weighted(int force_start_val, const ByteBuffer& 
                                at any position, due to the force start. */
 
     /* matrices for alignment scores ending in different states */
-    float** M = allocFloatMatrix(m + 1, n + 1); /* (Mis)Match */
-    float** Ix =
-        allocFloatMatrix(m + 1, n + 1); /* Insertion in x(=query), so x paired to gap (in y) */
-    float** Iy = allocFloatMatrix(m + 1, n + 1); /* Insertion(=bulge) in y(=target) */
+    Matrix<float> M(m + 1, n + 1); /* (Mis)Match */
+    /* Insertion in x(=query), so x paired to gap (in y) */
+    Matrix<float> Ix(m + 1, n + 1);
+    Matrix<float> Iy(m + 1, n + 1); /* Insertion(=bulge) in y(=target) */
 
     Ix[0][0] = Iy[0][0] = 0;
     M[0][0] = force_start_val;
@@ -222,11 +220,11 @@ static void RIs_force_start_end_weighted(int force_start_val, const ByteBuffer& 
     }
 #ifdef DEBUG
     printf("M matrix:\n");
-    printfloatMat(M, m + 1, n + 1, qseq, tseq);
+    printfloatMat(M.get(), m + 1, n + 1, qseq, tseq);
     printf("Bq matrix:\n");
-    printfloatMat(Ix, m + 1, n + 1, qseq, tseq);
+    printfloatMat(Ix.get(), m + 1, n + 1, qseq, tseq);
     printf("Bt matrix:\n");
-    printfloatMat(Iy, m + 1, n + 1, qseq, tseq);
+    printfloatMat(Iy.get(), m + 1, n + 1, qseq, tseq);
 #endif
     printf("***Structures and Energies***\n");
     /*backtrack */
@@ -245,7 +243,7 @@ static void RIs_force_start_end_weighted(int force_start_val, const ByteBuffer& 
 
         /*printf("col : %d\n",colj); */
         const auto max_score = find_max_value_f(
-            M, Ix, Iy, &k, &i, colj, m, dsm, qseq,
+            M.get(), Ix.get(), Iy.get(), &k, &i, colj, m, dsm, qseq,
             tseq); /*given arrays representing columns, we want to find the row position in which
                       the max score is reached. K is 0-1-2 M Ix Iy - should always be 0 to begin
                       with. NOTE: in this new version we search only the maximums in row m (last
@@ -393,22 +391,16 @@ static void RIs_force_start_end_weighted(int force_start_val, const ByteBuffer& 
         printf("Free energy [kcal/mol] (No extension penalty): %.2f (%f)\n", energy,
                static_cast<double>(max_score - force_start_val));
     }
-
-    freeFloatMatrix(M, m + 1);
-    freeFloatMatrix(Ix, m + 1);
-    freeFloatMatrix(Iy, m + 1);
 }
 
 static void RIs_force_start_end_init(
     int force_start_val, const char* pos_weights,
     const ByteBuffer& query_sequence_ix,  // query sequence - numeric representation
     const ByteBuffer& target_sequence_ix, // target sequence - numeric representation
-    const short dsm[6][6][6][6],          /* scoring matrix */
+    const Dsm& dsm,                       /* scoring matrix */
     const char* matname                   /* name of the scoring matrix */
 )
 {
-    auto testmax = (int)(1.5 * target_sequence_ix.size());
-    IA maxHit(testmax);
     ByteBuffer reversed_target;
 
     /*reverting seq2 (target) */
@@ -429,11 +421,11 @@ static void RIs_force_start_end_init(
         }
         if (size_wC20_5p_3p == query_sequence_ix.size() - 1) {
             RIs_force_start_end_weighted(force_start_val, query_sequence_ix, reversed_target,
-                                         &wC20_5p_3p[0], dsm, &maxHit, matname);
+                                         &wC20_5p_3p[0], dsm, matname);
         } else {
             RIs_force_start_end_weighted(
                 force_start_val, query_sequence_ix, reversed_target,
-                &wC20_5p_3p[size_wC20_5p_3p + 1 - query_sequence_ix.size()], dsm, &maxHit, matname);
+                &wC20_5p_3p[size_wC20_5p_3p + 1 - query_sequence_ix.size()], dsm, matname);
         }
     } /*
          else if (!strcmp(pos_weights, "test")){
@@ -458,7 +450,7 @@ static void RIs_force_start_end_init(
             noweight[i] = 1.0;
         }
         RIs_force_start_end_weighted(force_start_val, query_sequence_ix, reversed_target,
-                                     &noweight[0], dsm, &maxHit, matname);
+                                     &noweight[0], dsm, matname);
     } else {
         fprintf(stderr, "Undefined weights array. Existing weights verctors are CRISPR_20nt_5p_3p "
                         "and noweights. To add a new weights vector, create an array in weights.c "

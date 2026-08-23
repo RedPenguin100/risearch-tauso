@@ -1,9 +1,8 @@
 // End-to-end tests for the -f / -w path (forced start and position weights).
 //
-// The seven parameter sets used to check the search against a reference binary
-// never touch this path, so it went through the header split, two signature
-// changes, an energy-formula rewrite and an allocation rewrite without once
-// being executed. These tests keep that from happening again.
+// The parameter sets that check the search against a reference binary never
+// pass -f or -w, so nothing else here executes this path. These tests are what
+// covers it.
 
 #include <gtest/gtest.h>
 

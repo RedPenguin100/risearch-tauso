@@ -45,7 +45,7 @@ struct SingleSweep {
     std::vector<int> hs, hp;
 
     SingleSweep(const std::vector<unsigned char>& query, const std::vector<unsigned char>& target,
-                short dsm[6][6][6][6], int threshold)
+                Dsm& dsm, int threshold)
         : hs(target.size()), hp(target.size())
     {
         const auto m = static_cast<std::uint32_t>(query.size());
@@ -98,7 +98,7 @@ struct SingleSweep {
 
 TEST(BatchedSweep, EveryQueryMatchesTheSweepItReplaces)
 {
-    short dsm[6][6][6][6];
+    Dsm dsm;
     getMat("su95_noGU", &dsm[0][0][0][0], 0, 0);
 
     // Sixteen queries, deliberately of different lengths so the dead columns of
@@ -143,7 +143,7 @@ TEST(BatchedSweep, EveryQueryMatchesTheSweepItReplaces)
 
 TEST(BatchedSweep, RefusesABatchTooSmallToPayForItsLanes)
 {
-    short dsm[6][6][6][6];
+    Dsm dsm;
     getMat("su95_noGU", &dsm[0][0][0][0], 0, 0);
 
     const auto q = sequence(20, 5);

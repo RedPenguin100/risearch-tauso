@@ -21,7 +21,7 @@ std::vector<unsigned char> alternating(unsigned char a, unsigned char b, std::ui
     return q;
 }
 
-void matrix(const char* name, short (&out)[6][6][6][6])
+void matrix(const char* name, Dsm& out)
 {
     getMat(name, &out[0][0][0][0], 0, 0);
 }
@@ -30,7 +30,7 @@ void matrix(const char* name, short (&out)[6][6][6][6])
 
 TEST(Int16Bound, HoldsForTheLengthsAsosAreWritten)
 {
-    short dsm[6][6][6][6];
+    Dsm dsm;
     matrix("su95_noGU", dsm);
 
     for (auto m = 15u; m <= 25u; m++) {
@@ -41,7 +41,7 @@ TEST(Int16Bound, HoldsForTheLengthsAsosAreWritten)
 
 TEST(Int16Bound, GrowsWithTheQueryUntilItStopsFitting)
 {
-    short dsm[6][6][6][6];
+    Dsm dsm;
     matrix("su95_noGU", dsm);
 
     const auto short_q = alternating(0, 1, 20);
@@ -54,7 +54,7 @@ TEST(Int16Bound, GrowsWithTheQueryUntilItStopsFitting)
 
 TEST(Int16Bound, LeavesRoomBelowWhatAShortHolds)
 {
-    short dsm[6][6][6][6];
+    Dsm dsm;
     matrix("su95_noGU", dsm);
 
     const auto q = alternating(0, 1, 20);
@@ -69,7 +69,7 @@ TEST(Int16Bound, LeavesRoomBelowWhatAShortHolds)
 TEST(BulgeExtension, HoldsForEveryMatrixRisearchShips)
 {
     for (const char* name : {"su95", "su95_noGU", "t04", "t99", "slh04_noGU"}) {
-        short dsm[6][6][6][6];
+        Dsm dsm;
         matrix(name, dsm);
         const auto q = alternating(0, 1, 20);
         EXPECT_TRUE(!is_pos_target_bulge(dsm) && !is_pos_query_bulge(dsm)) << name;
@@ -78,7 +78,7 @@ TEST(BulgeExtension, HoldsForEveryMatrixRisearchShips)
 
 TEST(BulgeExtension, FailsWhenExtendingATargetBulgePays)
 {
-    short dsm[6][6][6][6];
+    Dsm dsm;
     matrix("su95_noGU", dsm);
     const auto q = alternating(0, 1, 20);
     ASSERT_TRUE(!is_pos_target_bulge(dsm) && !is_pos_query_bulge(dsm));
@@ -91,7 +91,7 @@ TEST(BulgeExtension, FailsWhenExtendingATargetBulgePays)
 
 TEST(BulgeExtension, FailsWhenExtendingTheQuerysOwnBulgePays)
 {
-    short dsm[6][6][6][6];
+    Dsm dsm;
     matrix("su95_noGU", dsm);
     const auto q = alternating(0, 1, 20);
     ASSERT_TRUE(!is_pos_target_bulge(dsm) && !is_pos_query_bulge(dsm));
@@ -104,7 +104,7 @@ TEST(BulgeExtension, FailsWhenExtendingTheQuerysOwnBulgePays)
 
 TEST(BulgeExtension, IsAPropertyOfTheMatrixAndNoQuery)
 {
-    short dsm[6][6][6][6];
+    Dsm dsm;
     matrix("su95_noGU", dsm);
     const auto q = alternating(0, 1, 20);
 
@@ -119,7 +119,7 @@ TEST(BulgeExtension, IsAPropertyOfTheMatrixAndNoQuery)
 TEST(Int16Bound, HoldsForEveryMatrixRisearchShips)
 {
     for (const char* name : {"su95", "su95_noGU", "t04", "t99", "slh04_noGU"}) {
-        short dsm[6][6][6][6];
+        Dsm dsm;
         matrix(name, dsm);
         const auto q = alternating(0, 1, 20);
         EXPECT_TRUE(fits_int16(dsm, q.data(), 20)) << name;
@@ -131,7 +131,7 @@ TEST(Int16Bound, HoldsForEveryMatrixRisearchShips)
 
 TEST(Int16Dispatch, AnAsoOfTheUsualLengthTakesTheNarrowSweep)
 {
-    short dsm[6][6][6][6];
+    Dsm dsm;
     matrix("su95_noGU", dsm);
     const auto q = alternating(0, 1, 20);
 
@@ -148,7 +148,7 @@ TEST(Int16Dispatch, TheTwoWidthsAreWhatTheKernelAssumes)
 
 TEST(Int16Dispatch, ALongQueryFallsBackRatherThanOverflowing)
 {
-    short dsm[6][6][6][6];
+    Dsm dsm;
     matrix("su95_noGU", dsm);
     const auto q = alternating(0, 1, 60);
 

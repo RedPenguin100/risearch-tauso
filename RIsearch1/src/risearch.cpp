@@ -39,6 +39,7 @@
 #include "cli/cli.h"
 #include "dsm.h"
 #include "nucleotide.h"
+#include "pair_header.h"
 
 void tune_glibc_allocator()
 {
@@ -135,29 +136,13 @@ std::vector<SequenceItem> load_sequences(const char* file_path, const char* cli_
 
 void print_header(const SequenceItem& query, const SequenceItem& target)
 {
-    /* Four spellings, one for each way the pair was given: a sequence from a
-       file prints its record number and its name, one from the command line
-       prints neither. */
-
-    const auto t_len = static_cast<std::uint32_t>(target.indices.size());
-    const auto q_len = static_cast<std::uint32_t>(query.indices.size());
-
-    if (query.id == 0 && target.id == 0) {
-        std::printf("\n\nquery from_cli (%u nts) vs. target from_cli (%u nts)\n\n", q_len, t_len);
-    } else if (query.id == 0) {
-        std::printf("\n\nquery from_cli (%u nts) vs. target %s (%u nts)\n\n", q_len,
-                    target.name.c_str(), t_len);
-    } else if (target.id == 0) {
-        std::printf("\n\nquery %s (%u nts) vs. target from_cli (%u nts)\n\n", query.name.c_str(),
-                    q_len, t_len);
-    } else {
-        std::printf("\n\nquery %d: %s (%u nts) vs. target %d: %s (%u nts)\n\n", query.id,
-                    query.name.c_str(), q_len, target.id, target.name.c_str(), t_len);
-    }
+    print_pair_header(query.name.c_str(), query.id,
+                      static_cast<std::uint32_t>(query.indices.size()), target.name.c_str(),
+                      target.id, static_cast<std::uint32_t>(target.indices.size()));
 }
 
-void process_target(const SequenceItem& target, const std::vector<SequenceItem>& queries,
-                    short (&dsm)[6][6][6][6], const config_st& config)
+void process_target(const SequenceItem& target, const std::vector<SequenceItem>& queries, Dsm& dsm,
+                    const config_st& config)
 {
     /* Queries are swept together where the sweep is what runs. Only a file
        holds enough queries to fill a batch's lanes, and only a file numbers the
@@ -205,7 +190,7 @@ int main(int argc, char* argv[])
     /* values filled in by getArgs from the command line */
     static config_st config;
 
-    short dsm[6][6][6][6];
+    Dsm dsm;
 
     getArgs(argc, argv, config);
 

@@ -12,6 +12,7 @@
 #include "cli/cli.h"
 #include "memory/ByteBuffer.hpp"
 #include "memory/GrowableBuffer.hpp"
+#include "pair_header.h"
 
 /**
  * Queries held back so that several can be swept against one target together.
@@ -51,8 +52,8 @@ public:
         return m_count == 0;
     }
 
-    void run(const ByteBuffer& target_seq, short (&dsm)[6][6][6][6], const char* tname,
-             int target_count, const config_st& config)
+    void run(const ByteBuffer& target_seq, Dsm& dsm, const char* tname, int target_count,
+             const config_st& config)
     {
         m_exact_rows = config.doSubopt && config.vicinity > 0;
         const bool swept = sweep_impl(target_seq, dsm, config.min_score);
@@ -60,9 +61,8 @@ public:
         for (auto k = 0u; k < m_count; k++) {
             const Entry& e = m_entries[k];
             if (config.printShort < 2) {
-                printf("\n\nquery %d: %s (%u nts) vs. target %d: %s (%u nts)\n\n", e.query_count,
-                       e.name.data(), e.len, target_count, tname,
-                       static_cast<std::uint32_t>(target_seq.size()));
+                print_pair_header(e.name.data(), e.query_count, e.len, tname, target_count,
+                                  static_cast<std::uint32_t>(target_seq.size()));
             }
             if (swept) {
                 report_query(k, e, target_seq, dsm, tname, config);
@@ -81,7 +81,7 @@ public:
     /* Sweeps the batch against one target, or answers false and leaves the
        queries to be aligned one at a time. Public so that what it produces can
        be checked query by query against the ordinary sweep. */
-    bool sweep(const ByteBuffer& target_seq, short dsm[6][6][6][6], int threshold)
+    bool sweep(const ByteBuffer& target_seq, Dsm& dsm, int threshold)
     {
         return sweep_impl(target_seq, dsm, threshold);
     }
@@ -90,12 +90,12 @@ public:
        score ending at each target position and the query position it ended at. */
     const std::int16_t* scores(unsigned query) const
     {
-        return m_hs.get() + static_cast<std::size_t>(query) * m_n;
+        return m_scores_by_query.get() + static_cast<std::size_t>(query) * m_n;
     }
 
     const std::int16_t* positions(unsigned query) const
     {
-        return m_hp.get() + static_cast<std::size_t>(query) * m_n;
+        return m_positions_by_query.get() + static_cast<std::size_t>(query) * m_n;
     }
 
     int swept_length() const
@@ -131,8 +131,7 @@ private:
 
        The whole batch goes through the kernel or none of it does: one query the
        int16 bound does not hold for would have to be swept on its own anyway. */
-    bool can_sweep(const ByteBuffer& target_seq, const short dsm[6][6][6][6],
-                   BatchInputs& inputs) const
+    bool can_sweep(const ByteBuffer& target_seq, const Dsm& dsm, BatchInputs& inputs) const
     {
         if (!CPU_HAS_AVX2 || m_count < kMinQueries || target_seq.is_empty()) {
             return false;
@@ -162,19 +161,19 @@ private:
 
         m_m_rows.reserve(2 * query_stride);
         m_iy_rows.reserve(2 * query_stride);
-        m_scan1.reserve(query_stride);
-        m_hs16.reserve(target_stride);
-        m_hp16.reserve(target_stride);
+        m_scan_row1.reserve(query_stride);
+        m_scores_by_row.reserve(target_stride);
+        m_positions_by_row.reserve(target_stride);
         /* The runs laid out by query are what a vicinity window reads; without
            one the reporting takes the sweep's own layout and these are never
            touched. At a long target they are the two largest buffers here. */
         if (m_exact_rows) {
-            m_hs.reserve(target_stride);
-            m_hp.reserve(target_stride);
+            m_scores_by_query.reserve(target_stride);
+            m_positions_by_query.reserve(target_stride);
         }
     }
 
-    bool sweep_impl(const ByteBuffer& target_seq, short dsm[6][6][6][6], int threshold)
+    bool sweep_impl(const ByteBuffer& target_seq, Dsm& dsm, int threshold)
     {
 #if RISEARCH1_HAS_AVX2
         BatchInputs inputs;
@@ -200,8 +199,8 @@ private:
             return false;
         }
         for (auto lane = 0u; lane < kQueries; lane++) {
-            m_hs16[lane] = first_score[lane];
-            m_hp16[lane] = first_pos[lane];
+            m_scores_by_row[lane] = first_score[lane];
+            m_positions_by_row[lane] = first_pos[lane];
         }
 
         run_sweep(target, n, first_score, first_pos);
@@ -227,13 +226,13 @@ private:
        rows as values, and its Ix as the terms that make the sweep's scan
        reproduce it. */
     bool init_first_row(const unsigned char* const* queries, const std::uint32_t* lengths,
-                        std::uint32_t m, unsigned char t_last, short dsm[6][6][6][6],
-                        std::int16_t* first_score, std::int16_t* first_pos)
+                        std::uint32_t m, unsigned char t_last, Dsm& dsm, std::int16_t* first_score,
+                        std::int16_t* first_pos)
     {
         const auto stride = static_cast<std::size_t>(m + 1) * kQueries;
         std::int16_t* const m_row = m_m_rows.get() + stride; /* the row read first */
         std::int16_t* const iy_row = m_iy_rows.get() + stride;
-        std::int16_t* const scan_row = m_scan1.get();
+        std::int16_t* const scan_row = m_scan_row1.get();
         const std::int16_t* const ix_prefix = m_profile.ix_prefix();
 
         /* Column 0 is never read; give it a value so nothing is undefined. */
@@ -242,10 +241,10 @@ private:
             m_iy_rows[lane] = 0;
         }
 
-        m_row1.reserve(3 * static_cast<std::size_t>(m + 1));
-        int* const M = m_row1.get() + 0 * (m + 1);
-        int* const Ix = m_row1.get() + 1 * (m + 1);
-        int* const Iy = m_row1.get() + 2 * (m + 1);
+        m_first_row.reserve(3 * static_cast<std::size_t>(m + 1));
+        int* const M = m_first_row.get() + 0 * (m + 1);
+        int* const Ix = m_first_row.get() + 1 * (m + 1);
+        int* const Iy = m_first_row.get() + 2 * (m + 1);
 
         for (auto lane = 0u; lane < kQueries; lane++) {
             if (lane >= m_count) {
@@ -313,7 +312,8 @@ private:
             threshold > SHRT_MAX ? SHRT_MAX : (threshold < SHRT_MIN ? SHRT_MIN : threshold)));
 
         for (auto j = 0; j < n; j++) {
-            const __m256i v = v_vec_load(m_hs16.get() + static_cast<std::size_t>(j) * kQueries);
+            const __m256i v =
+                v_vec_load(m_scores_by_row.get() + static_cast<std::size_t>(j) * kQueries);
             /* One bit per query, out of a sixteen lane compare. */
             auto bits = v_lane_bits16(v_greater_than<std::int16_t>(v, thr));
             while (bits) {
@@ -330,35 +330,35 @@ private:
        reporting reads one query's whole run, so the two want opposite layouts. */
     __attribute__((target("avx2"))) void deinterleave(int n)
     {
-        std::int16_t* hs_query[kQueries];
-        std::int16_t* hp_query[kQueries];
+        std::int16_t* scores_out[kQueries];
+        std::int16_t* positions_out[kQueries];
         for (auto k = 0u; k < m_count; k++) {
-            hs_query[k] = m_hs.get() + static_cast<std::size_t>(k) * n;
-            hp_query[k] = m_hp.get() + static_cast<std::size_t>(k) * n;
+            scores_out[k] = m_scores_by_query.get() + static_cast<std::size_t>(k) * n;
+            positions_out[k] = m_positions_by_query.get() + static_cast<std::size_t>(k) * n;
         }
-        const std::int16_t* hs16 = m_hs16.get();
-        const std::int16_t* hp16 = m_hp16.get();
+        const std::int16_t* scores_in = m_scores_by_row.get();
+        const std::int16_t* positions_in = m_positions_by_row.get();
 
         /* j stays in scope so the tail can resume where the blocks stopped: the
            target positions past the last whole sixteen go one at a time. */
         auto j = 0;
         for (; j + static_cast<int>(kQueries) <= n; j += kQueries) {
-            v_transpose16x16(hs16, hs_query, m_count);
-            v_transpose16x16(hp16, hp_query, m_count);
-            hs16 += kQueries * kQueries;
-            hp16 += kQueries * kQueries;
+            v_transpose16x16(scores_in, scores_out, m_count);
+            v_transpose16x16(positions_in, positions_out, m_count);
+            scores_in += kQueries * kQueries;
+            positions_in += kQueries * kQueries;
             for (auto k = 0u; k < m_count; k++) {
-                hs_query[k] += kQueries;
-                hp_query[k] += kQueries;
+                scores_out[k] += kQueries;
+                positions_out[k] += kQueries;
             }
         }
         for (; j < n; j++) {
             for (auto k = 0u; k < m_count; k++) {
-                *hs_query[k]++ = hs16[k];
-                *hp_query[k]++ = hp16[k];
+                *scores_out[k]++ = scores_in[k];
+                *positions_out[k]++ = positions_in[k];
             }
-            hs16 += kQueries;
-            hp16 += kQueries;
+            scores_in += kQueries;
+            positions_in += kQueries;
         }
     }
 
@@ -380,13 +380,13 @@ private:
            where one is asked for, every row's score is read and none can be left
            standing as a bound. */
         if (m_exact_rows) {
-            score_target_batched<false>(target, m_profile, M, Iy, m_scan1.get(), m_hs16.get(),
-                                        m_hp16.get(), static_cast<std::size_t>(n), m_threshold,
-                                        best);
+            score_target_batched<false>(target, m_profile, M, Iy, m_scan_row1.get(),
+                                        m_scores_by_row.get(), m_positions_by_row.get(),
+                                        static_cast<std::size_t>(n), m_threshold, best);
         } else {
-            score_target_batched<true>(target, m_profile, M, Iy, m_scan1.get(), m_hs16.get(),
-                                       m_hp16.get(), static_cast<std::size_t>(n), m_threshold,
-                                       best);
+            score_target_batched<true>(target, m_profile, M, Iy, m_scan_row1.get(),
+                                       m_scores_by_row.get(), m_positions_by_row.get(),
+                                       static_cast<std::size_t>(n), m_threshold, best);
         }
 
         v_vec_store(m_best_score, best.score);
@@ -399,8 +399,8 @@ private:
     /* One query's hits, reported exactly as the unbatched path reports them: the
        sweep's runs are widened into the int arrays HitReporter reads, and the
        traceback that follows is the int32 one. */
-    void report_query(unsigned lane, const Entry& e, const ByteBuffer& target_seq,
-                      short dsm[6][6][6][6], const char* tname, const config_st& config)
+    void report_query(unsigned lane, const Entry& e, const ByteBuffer& target_seq, Dsm& dsm,
+                      const char* tname, const config_st& config)
     {
         const auto m = static_cast<std::uint32_t>(e.seq.size());
         const auto* query = e.seq.unsigned_data();
@@ -414,11 +414,13 @@ private:
         HitReporter reporter(query, target, m_n, profile, config, e.name.data(), tname);
         if (m_exact_rows) {
             const auto offset = static_cast<std::size_t>(lane) * m_n;
-            reporter.report_sweep(m_hs.get() + offset, m_hp.get() + offset, config.min_score,
+            reporter.report_sweep(m_scores_by_query.get() + offset,
+                                  m_positions_by_query.get() + offset, config.min_score,
                                   running_max);
         } else {
-            reporter.report_sweep_sparse(m_clears.get() + lane * m_clear_words, m_hs16.get() + lane,
-                                         m_hp16.get() + lane, kQueries, running_max);
+            reporter.report_sweep_sparse(m_clears.get() + lane * m_clear_words,
+                                         m_scores_by_row.get() + lane,
+                                         m_positions_by_row.get() + lane, kQueries, running_max);
         }
     }
 
@@ -426,10 +428,17 @@ private:
     unsigned m_count = 0;
 
     BatchedQueryProfile m_profile;
-    GrowableBuffer<std::int16_t> m_m_rows, m_iy_rows, m_scan1;
-    GrowableBuffer<std::int16_t> m_hs16, m_hp16;
-    GrowableBuffer<std::int16_t> m_hs, m_hp;
-    GrowableBuffer<int> m_row1;
+    GrowableBuffer<std::int16_t> m_m_rows, m_iy_rows;
+    /* The Ix scan terms row 2 reads, which the caller computes. */
+    GrowableBuffer<std::int16_t> m_scan_row1;
+    /* The runs as the sweep writes them: one target position's sixteen lanes
+       together. */
+    GrowableBuffer<std::int16_t> m_scores_by_row, m_positions_by_row;
+    /* The same runs as the reporting reads them: one query's whole run. Filled
+       only where a vicinity window needs it -- see allocate_sweep_buffers. */
+    GrowableBuffer<std::int16_t> m_scores_by_query, m_positions_by_query;
+    /* Target position 1, computed in int32 before the sweep begins. */
+    GrowableBuffer<int> m_first_row;
     GrowableBuffer<std::uint32_t> m_clears;
     std::size_t m_clear_words = 0;
     std::int16_t m_best_score[kQueries]{};

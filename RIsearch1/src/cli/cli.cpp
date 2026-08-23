@@ -69,7 +69,7 @@ std::uint32_t parse_length_arg(const char* text, char option)
                     "out, appears only once if at all (and not necessarily as first).\n");
     fprintf(stderr,
             "\t-p          switch for short output, for backwards compatibility, same as -p1\n");
-    fprintf(stderr, "\t-R         Transpose the scoring matrix");
+    fprintf(stderr, "\t-R         Transpose the scoring matrix\n");
     fprintf(stderr, "\t-p[1-3]     different shorter output modes:\n");
     fprintf(stderr, "\t\t-p1     one line per hit, incl. interaction string, still header for each "
                     "pair (query / target)\n");
@@ -109,7 +109,7 @@ void getArgs(int argc, char* argv[], config_st& config)
      * the interaction to start at position 0 of the DNA. */
     config.tblen = 40; /* trace-back length, that many nucleotides before 'maxHit' */
 
-    char c;
+    int c;
     while ((c = getopt(argc, argv, "1q:t:Q:T:d:X:m:s:e:n:w:l:f:p:R::")) != -1)
         switch (c) {
         case '1':

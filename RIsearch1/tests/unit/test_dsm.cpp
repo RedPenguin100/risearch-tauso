@@ -6,12 +6,12 @@
 #include "dsm.h"
 
 // The raw tables in dsm.c, before any penalty is applied.
-extern const short dsm_su95_rev_woGU_pos[6][6][6][6];
-extern const short dsm_extend[6][6][6][6];
+extern const Dsm dsm_su95_rev_woGU_pos;
+extern const Dsm dsm_extend;
 
 TEST(Dsm, WithoutPenaltyReproducesTheRawTable)
 {
-    short out[6][6][6][6];
+    Dsm out;
     const int extPen = 0;
     const int transpose_matrix = 0;
     char name[] = "su95_noGU";
@@ -25,7 +25,7 @@ TEST(Dsm, WithoutPenaltyReproducesTheRawTable)
 
 TEST(Dsm, SubtractsThePenaltyTimesTheExtensionTable)
 {
-    short out[6][6][6][6];
+    Dsm out;
     char name[] = "su95_noGU";
     const int extPen = 30;
     const int transpose_matrix = 0;
@@ -40,7 +40,7 @@ TEST(Dsm, TransposeSwapsTheQueryAndTargetHalvesOfTheIndex)
 {
     // -R scores the duplex with the strands exchanged: the entry for query (i,j)
     // against target (k,l) must land at target (k,l) against query (i,j).
-    short out[6][6][6][6];
+    Dsm out;
     const int extPen = 0;
     const int transpose_matrix = 1;
     char name[] = "su95_noGU";
@@ -53,7 +53,7 @@ TEST(Dsm, TransposeSwapsTheQueryAndTargetHalvesOfTheIndex)
 
 TEST(Dsm, LoadsEveryDocumentedMatrixName)
 {
-    short out[6][6][6][6];
+    Dsm out;
     const int extPen = 0;
     const int transpose_matrix = 0;
 

@@ -33,7 +33,7 @@
 template<typename int_type>
 static RunningVectorMax score_first_row(int_type* M, int_type* Ix, int_type* Iy,
                                         const unsigned char* query, std::uint32_t m,
-                                        unsigned char t_last, const short dsm[6][6][6][6])
+                                        unsigned char t_last, const Dsm& dsm)
 {
     /* Column 0: an alignment must open on a base pair, never on a bulge. */
     Iy[0] = 0;

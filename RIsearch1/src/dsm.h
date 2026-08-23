@@ -2,21 +2,30 @@
 
 #include <cstdio>
 #include <cstring>
-// ReSharper disable once CppUnusedIncludeDirective
 #include <cstdlib>
 
 #include "nucleotide.h" /* GAP */
 
 
-extern const short dsm_t99[6][6][6][6];
-extern const short dsm_t04[6][6][6][6];
-extern const short dsm_su95_rev_wGU_pos[6][6][6][6];
-extern const short dsm_su95_rev_woGU_pos[6][6][6][6];
-extern const short dsm_slh04_woGU_pos[6][6][6][6];
-
-extern const short dsm_extend[6][6][6][6];
-
 constexpr unsigned int DSM_SIDE = 6; /* alphabet size: A C G T/U N - */
+
+/* The nearest-neighbour score table.
+ *
+ * dsm[q_prev][q_cur][t_prev][t_cur] is what the step from one (query, target)
+ * pair to the next is worth, in dacal/mol. GAP stands in for a nucleotide the
+ * step does not have on that side, which is how a bulge is spelled: a query
+ * bulge reads dsm[q_prev][q_cur][GAP][GAP], a target bulge
+ * dsm[GAP][GAP][t_prev][t_cur].
+ */
+using Dsm = short[DSM_SIDE][DSM_SIDE][DSM_SIDE][DSM_SIDE];
+
+extern const Dsm dsm_t99;
+extern const Dsm dsm_t04;
+extern const Dsm dsm_su95_rev_wGU_pos;
+extern const Dsm dsm_su95_rev_woGU_pos;
+extern const Dsm dsm_slh04_woGU_pos;
+
+extern const Dsm dsm_extend;
 
 struct NamedMatrix {
     const char* name;
@@ -78,7 +87,7 @@ inline void getMat(const char* matname, short* dsm, short extension_penalty, int
 /* Whether any entry that opens or extends a bulge is positive, which means the
    alignment is paid to open bulges. A property of the matrix and of the
    extension penalty applied to it, not of any query. */
-inline bool has_positive_gap(const short dsm[6][6][6][6])
+inline bool has_positive_gap(const Dsm& dsm)
 {
     for (auto q_prev = 0u; q_prev < DSM_SIDE; q_prev++) {
         for (auto q_cur = 0u; q_cur < DSM_SIDE; q_cur++) {

@@ -3,13 +3,14 @@
 #include <cstddef>
 #include <cstdlib>
 
+#include "memory/alloc.hpp"
+
 /**
  * An array that grows to whatever a run needs and is reused by the next one.
  *
  * Sized rather than resized: growing throws away what the buffer held, because
- * every caller fills it before reading it. Holding the capacity here is what
- * separates this from MallocRAII, whose callers had to carry a matching
- * capacity of their own beside every buffer.
+ * every caller fills it before reading it. The capacity lives here, so a caller
+ * asks for what it needs and never tracks how much the buffer already holds.
  *
  * ALIGNED, BECAUSE THE BATCHED SWEEP READS WHOLE REGISTERS AT REGISTER-SIZED
  * STRIDES. Its rows, runs and term tables are all indexed in units of sixteen
@@ -49,6 +50,9 @@ public:
         const auto bytes = (wanted * sizeof(T) + kAlign - 1) / kAlign * kAlign;
         std::free(m_data);
         m_data = static_cast<T*>(std::aligned_alloc(kAlign, bytes));
+        if (m_data == nullptr) {
+            out_of_memory("a sweep buffer", bytes);
+        }
         m_capacity = bytes / sizeof(T);
     }
 
