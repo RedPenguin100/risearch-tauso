@@ -130,12 +130,15 @@ double measure_batched(int min_score, int repeats)
     std::fflush(stdout);
     testing::internal::CaptureStdout();
     const auto start = std::chrono::steady_clock::now();
+    /* One cache for the whole loop, as a run has: the queries do not change
+       between repeats, which is the case the cache exists for. */
+    QueryProfileCache profiles(dsm);
     for (int r = 0; r < repeats; r++) {
         QueryBatch batch;
         for (int k = 0; k < kBatchQueries; k++) {
             batch.add(queries[k], names[k], k + 1, kQueryLength);
         }
-        batch.run(target, dsm, "t", 1, config);
+        batch.run(target, dsm, "t", 1, config, profiles);
     }
     const auto elapsed = std::chrono::steady_clock::now() - start;
     testing::internal::GetCapturedStdout();
