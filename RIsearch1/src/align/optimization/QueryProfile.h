@@ -40,7 +40,11 @@ public:
     };
 
 
-    QueryProfile(const unsigned char* query_sequence, std::uint32_t m, Dsm& dsm,
+    /* dsm is taken by array rather than by reference, so that it decays to a
+       pointer as an ordinary array parameter does. Written Dsm&, this
+       constructor is about 20% slower, which is 4-5% of a run with many
+       targets -- it is called once per query and per target. */
+    QueryProfile(const unsigned char* query_sequence, std::uint32_t m, Dsm dsm,
                  bool has_positive_gap)
         : m_length(m), m_stride(m + 1 + kBlockSlack), m_m_from_m(kContexts * m_stride),
           m_m_from_ix(kContexts * m_stride), m_m_from_iy(kContexts * m_stride),

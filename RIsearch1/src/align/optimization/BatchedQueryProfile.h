@@ -74,7 +74,7 @@ public:
      * no sweep and its queries to be aligned one at a time.
      */
     bool build(const unsigned char* const* queries, const std::uint32_t* lengths, unsigned count,
-               Dsm& dsm, std::uint32_t m)
+               Dsm dsm, std::uint32_t m)
     {
         m_m = m;
         m_stride = m + 1;
