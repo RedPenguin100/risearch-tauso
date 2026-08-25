@@ -16,3 +16,16 @@ Behavioral changes:
 
 * Sequence with a control byte, or a byte of value 127 or above, is rejected instead
   of omitted
+* A record that encodes to nothing -- an empty sequence, or one of only gap
+  characters -- is dropped when the file is read, rather than carried as far as the
+  alignment and refused there. It produced no hits either way, but it used to print
+  a pair header first:
+
+  ```
+  query 1: aso1 (20 nts) vs. target 1: empty (0 nts)
+  ```
+
+  Those headers are gone. Only the default and `-p1` output modes print them, so
+  `-p2` and `-p3` are unaffected. Record numbers count every record in the file,
+  including the dropped ones, so the surviving records keep the numbers they were
+  reported under before.

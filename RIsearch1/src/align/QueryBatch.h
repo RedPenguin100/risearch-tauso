@@ -132,17 +132,14 @@ private:
 
        The whole batch goes through the kernel or none of it does: one query the
        int16 bound does not hold for would have to be swept on its own anyway. */
-    bool can_sweep(const ByteBuffer& target_seq, const Dsm& dsm, BatchInputs& inputs) const
+    bool can_sweep(const Dsm& dsm, BatchInputs& inputs) const
     {
-        if (!CPU_HAS_AVX2 || m_count < kMinQueries || target_seq.is_empty()) {
+        if (!CPU_HAS_AVX2 || m_count < kMinQueries) {
             return false;
         }
 
         for (auto k = 0u; k < m_count; k++) {
             const Entry& e = m_entries[k];
-            if (e.seq.is_empty()) {
-                return false;
-            }
             inputs.queries[k] = e.seq.unsigned_data();
             inputs.lengths[k] = static_cast<std::uint32_t>(e.seq.size());
             if (!fits_int16(dsm, inputs.queries[k], inputs.lengths[k])) {
@@ -178,7 +175,7 @@ private:
     {
 #if RISEARCH1_HAS_AVX2
         BatchInputs inputs;
-        if (!can_sweep(target_seq, dsm, inputs)) {
+        if (!can_sweep(dsm, inputs)) {
             return false;
         }
 

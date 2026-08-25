@@ -104,10 +104,18 @@ std::vector<SequenceItem> load_sequences_from_file(const char* file_path, const 
     while (seq_record.read(fasta_sequences.handle())) {
         count++;
         ByteBuffer indices;
-        if (seq2ix(seq_record.get_size(), seq_record.get_sequence(), indices, seq_record.get_name(),
-                   role)) {
-            sequences.push_back({seq_record.get_name(), std::move(indices), count});
+        if (!seq2ix(seq_record.get_size(), seq_record.get_sequence(), indices,
+                    seq_record.get_name(), role)) {
+            continue; /* not a sequence at all -- seq2ix has already said so */
         }
+        /* A record that encodes to nothing -- empty, or only gap characters --
+           cannot be aligned, so it is dropped here and nothing downstream has to
+           ask again. The record number counts the file's records, including the
+           dropped ones, so a record keeps the number it is reported under. */
+        if (indices.is_empty()) {
+            continue;
+        }
+        sequences.push_back({seq_record.get_name(), std::move(indices), count});
     }
 
     if (sequences.empty()) {
@@ -165,8 +173,7 @@ void process_target(const SequenceItem& target, const std::vector<SequenceItem>&
         if (batching) {
             batch.add(query.indices, query.name.c_str(), query.id, len_seq1);
             if (batch.full()) {
-                batch.run(target.indices, dsm, target.name.c_str(), target.id, config,
-                          profiles);
+                batch.run(target.indices, dsm, target.name.c_str(), target.id, config, profiles);
             }
             continue;
         }
