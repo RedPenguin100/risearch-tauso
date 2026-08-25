@@ -142,7 +142,7 @@ void print_header(const SequenceItem& query, const SequenceItem& target)
 }
 
 void process_target(const SequenceItem& target, const std::vector<SequenceItem>& queries, Dsm& dsm,
-                    const config_st& config, QueryProfileCache& profiles)
+                    const config_st& config, QueryProfileCache& profiles, QueryBatch& batch)
 {
     /* Queries are swept together where the sweep is what runs. Only a file
        holds enough queries to fill a batch's lanes, and only a file numbers the
@@ -151,8 +151,6 @@ void process_target(const SequenceItem& target, const std::vector<SequenceItem>&
 
     // force start not supported for batching
     const bool batching = from_files && !uses_force_start(config);
-
-    QueryBatch batch;
 
     for (const auto& query : queries) {
         /* Pairing a query with the target of the same number is only meaningful
@@ -165,8 +163,7 @@ void process_target(const SequenceItem& target, const std::vector<SequenceItem>&
         if (batching) {
             batch.add(query.indices, query.name.c_str(), query.id, len_seq1);
             if (batch.full()) {
-                batch.run(target.indices, dsm, target.name.c_str(), target.id, config,
-                          profiles);
+                batch.run(target.indices, dsm, target.name.c_str(), target.id, config, profiles);
             }
             continue;
         }
@@ -204,9 +201,13 @@ int main(int argc, char* argv[])
     /* Built here rather than per target: a query's profile does not depend on
        the target it is swept against. */
     QueryProfileCache profiles(dsm);
+    /* The batch outlives the target loop so that what it resolves from the
+       queries -- the term tables, and whether they can be swept at all -- is
+       resolved once rather than once per target. */
+    QueryBatch batch;
 
     for (const auto& target : targets) {
-        process_target(target, queries, dsm, config, profiles);
+        process_target(target, queries, dsm, config, profiles, batch);
     }
 
     return 0;
