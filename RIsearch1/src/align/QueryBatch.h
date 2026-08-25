@@ -8,6 +8,7 @@
 #include "align/dispatch.h"
 #include "align/first_row.h"
 #include "align/int16_safety.h"
+#include "align/optimization/BatchedProfileCache.h"
 #include "align/optimization/BatchedQueryProfile.h"
 #include "align/optimization/QueryProfileCache.h"
 #include "cli/cli.h"
@@ -132,12 +133,49 @@ private:
 
        The whole batch goes through the kernel or none of it does: one query the
        int16 bound does not hold for would have to be swept on its own anyway. */
-    bool can_sweep(const ByteBuffer& target_seq, const Dsm& dsm, BatchInputs& inputs) const
+    /* Whether this batch sweeps, and the terms it sweeps with.
+     *
+     * Both come from the queries and the matrix -- the int16 bound on every
+     * query, the batch's longest query, and the whole term table. Nothing in
+     * them reads the target, so a batch answers once and every later target
+     * reads the answer back. A profile is null where the batch cannot be swept,
+     * which is a verdict this remembers rather than reaches again.
+     */
+    const BatchedProfileCache::Entry& resolved_batch(Dsm& dsm)
     {
-        if (!CPU_HAS_AVX2 || m_count < kMinQueries || target_seq.is_empty()) {
-            return false;
+        BatchedProfileCache::Entry& cached = m_profiles.entry(m_entries[0].query_count);
+        if (cached.decided) {
+            return cached;
+        }
+        /* Held as the verdict until one is reached, so that every way out of
+           this leaves a batch that cannot be swept. */
+        cached.decided = true;
+        cached.profile = nullptr;
+
+        BatchInputs inputs;
+        if (!can_sweep(dsm, inputs)) {
+            return cached;
         }
 
+        BatchedQueryProfile* const kept = m_profiles.make_kept(inputs.m);
+        BatchedQueryProfile& built = kept ? *kept : m_profiles.scratch();
+        if (!built.build(inputs.queries, inputs.lengths, m_count, dsm, inputs.m)) {
+            return cached;
+        }
+
+        /* A batch past the budget built into the scratch slot, which the next
+           batch overwrites, so it is not decided and resolves again. */
+        cached.decided = kept != nullptr;
+        cached.profile = &built;
+        cached.m = inputs.m;
+        return cached;
+    }
+
+    /* What the kernel reads of the queries, and whether they can be swept at
+       all. The target is not among the answers, which is what lets
+       resolved_batch keep them. */
+    bool can_sweep(const Dsm& dsm, BatchInputs& inputs) const
+    {
         for (auto k = 0u; k < m_count; k++) {
             const Entry& e = m_entries[k];
             if (e.seq.is_empty()) {
@@ -177,26 +215,27 @@ private:
     bool sweep_impl(const ByteBuffer& target_seq, Dsm& dsm, int threshold)
     {
 #if RISEARCH1_HAS_AVX2
-        BatchInputs inputs;
-        if (!can_sweep(target_seq, dsm, inputs)) {
+        /* The three things that can differ from one target to the next. */
+        if (!CPU_HAS_AVX2 || m_count < kMinQueries || target_seq.is_empty()) {
             return false;
         }
 
-        const auto m = inputs.m;
+        const BatchedProfileCache::Entry& batch = resolved_batch(dsm);
+        if (batch.profile == nullptr) {
+            return false;
+        }
+        m_profile = batch.profile;
+
+        const auto m = batch.m;
         const auto n = static_cast<int>(target_seq.size());
         const unsigned char* const target = target_seq.unsigned_data();
         m_threshold = threshold;
-
-        if (!m_profile.build(inputs.queries, inputs.lengths, m_count, dsm, m)) {
-            return false;
-        }
 
         allocate_sweep_buffers(m, n);
 
         std::int16_t first_score[kQueries];
         std::int16_t first_pos[kQueries];
-        if (!init_first_row(inputs.queries, inputs.lengths, m, target[n - 1], dsm, first_score,
-                            first_pos)) {
+        if (!init_first_row(*m_profile, m, target[n - 1], dsm, first_score, first_pos)) {
             return false;
         }
         for (auto lane = 0u; lane < kQueries; lane++) {
@@ -204,7 +243,7 @@ private:
             m_positions_by_row[lane] = first_pos[lane];
         }
 
-        run_sweep(target, n, first_score, first_pos);
+        run_sweep(*m_profile, target, n, first_score, first_pos);
         if (m_exact_rows) {
             deinterleave(n);
         } else {
@@ -226,15 +265,14 @@ private:
        one the sweep states, so it is computed here in int32 and handed over: the
        rows as values, and its Ix as the terms that make the sweep's scan
        reproduce it. */
-    bool init_first_row(const unsigned char* const* queries, const std::uint32_t* lengths,
-                        std::uint32_t m, unsigned char t_last, Dsm& dsm, std::int16_t* first_score,
-                        std::int16_t* first_pos)
+    bool init_first_row(const BatchedQueryProfile& profile, std::uint32_t m, unsigned char t_last,
+                        Dsm& dsm, std::int16_t* first_score, std::int16_t* first_pos)
     {
         const auto stride = static_cast<std::size_t>(m + 1) * kQueries;
         std::int16_t* const m_row = m_m_rows.get() + stride; /* the row read first */
         std::int16_t* const iy_row = m_iy_rows.get() + stride;
         std::int16_t* const scan_row = m_scan_row1.get();
-        const std::int16_t* const ix_prefix = m_profile.ix_prefix();
+        const std::int16_t* const ix_prefix = profile.ix_prefix();
 
         /* Column 0 is never read; give it a value so nothing is undefined. */
         for (auto lane = 0u; lane < kQueries; lane++) {
@@ -259,8 +297,8 @@ private:
                 continue;
             }
 
-            const unsigned char* const q = queries[lane];
-            const auto len = lengths[lane];
+            const unsigned char* const q = m_entries[lane].seq.unsigned_data();
+            const auto len = static_cast<std::uint32_t>(m_entries[lane].seq.size());
 
             const RunningVectorMax running_row_max =
                 score_first_row<int>(M, Ix, Iy, q, len, t_last, dsm);
@@ -363,7 +401,8 @@ private:
         }
     }
 
-    __attribute__((target("avx2"))) void run_sweep(const unsigned char* target, int n,
+    __attribute__((target("avx2"))) void run_sweep(const BatchedQueryProfile& profile,
+                                                   const unsigned char* target, int n,
                                                    const std::int16_t* first_score,
                                                    const std::int16_t* first_pos)
     {
@@ -373,7 +412,7 @@ private:
         best.pos_j_lo = v_int_to_avx2<std::int32_t>(1);
         best.pos_j_hi = v_int_to_avx2<std::int32_t>(1);
 
-        const auto stride = static_cast<std::size_t>(m_profile.m() + 1) * kQueries;
+        const auto stride = static_cast<std::size_t>(profile.m() + 1) * kQueries;
         std::int16_t* const M[2] = {m_m_rows.get(), m_m_rows.get() + stride};
         std::int16_t* const Iy[2] = {m_iy_rows.get(), m_iy_rows.get() + stride};
 
@@ -381,11 +420,11 @@ private:
            where one is asked for, every row's score is read and none can be left
            standing as a bound. */
         if (m_exact_rows) {
-            score_target_batched<false>(target, m_profile, M, Iy, m_scan_row1.get(),
+            score_target_batched<false>(target, profile, M, Iy, m_scan_row1.get(),
                                         m_scores_by_row.get(), m_positions_by_row.get(),
                                         static_cast<std::size_t>(n), m_threshold, best);
         } else {
-            score_target_batched<true>(target, m_profile, M, Iy, m_scan_row1.get(),
+            score_target_batched<true>(target, profile, M, Iy, m_scan_row1.get(),
                                        m_scores_by_row.get(), m_positions_by_row.get(),
                                        static_cast<std::size_t>(n), m_threshold, best);
         }
@@ -430,7 +469,9 @@ private:
     Entry m_entries[kQueries];
     unsigned m_count = 0;
 
-    BatchedQueryProfile m_profile;
+    /* Points into m_profiles at the profile for the batch now loaded. */
+    BatchedQueryProfile* m_profile = nullptr;
+    BatchedProfileCache m_profiles;
     GrowableBuffer<std::int16_t> m_m_rows, m_iy_rows;
     /* The Ix scan terms row 2 reads, which the caller computes. */
     GrowableBuffer<std::int16_t> m_scan_row1;
