@@ -140,8 +140,12 @@ private:
      * them reads the target, so a batch answers once and every later target
      * reads the answer back. A profile is null where the batch cannot be swept,
      * which is a verdict this remembers rather than reaches again.
+     *
+     * Kept out of line. It runs once per target and carries the whole build
+     * path; inlined, it bloats the function that holds the sweep's call and
+     * costs 3.6% at 600 nt records and 6.2% at 2500 nt.
      */
-    const BatchedProfileCache::Entry& resolved_batch(Dsm& dsm)
+    __attribute__((noinline)) const BatchedProfileCache::Entry& resolved_batch(Dsm& dsm)
     {
         BatchedProfileCache::Entry& cached = m_profiles.entry(m_entries[0].query_count);
         if (cached.decided) {
