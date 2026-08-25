@@ -142,7 +142,7 @@ void print_header(const SequenceItem& query, const SequenceItem& target)
 }
 
 void process_target(const SequenceItem& target, const std::vector<SequenceItem>& queries, Dsm& dsm,
-                    const config_st& config)
+                    const config_st& config, QueryProfileCache& profiles)
 {
     /* Queries are swept together where the sweep is what runs. Only a file
        holds enough queries to fill a batch's lanes, and only a file numbers the
@@ -165,7 +165,8 @@ void process_target(const SequenceItem& target, const std::vector<SequenceItem>&
         if (batching) {
             batch.add(query.indices, query.name.c_str(), query.id, len_seq1);
             if (batch.full()) {
-                batch.run(target.indices, dsm, target.name.c_str(), target.id, config);
+                batch.run(target.indices, dsm, target.name.c_str(), target.id, config,
+                          profiles);
             }
             continue;
         }
@@ -179,7 +180,7 @@ void process_target(const SequenceItem& target, const std::vector<SequenceItem>&
     }
 
     if (batching && !batch.empty()) {
-        batch.run(target.indices, dsm, target.name.c_str(), target.id, config);
+        batch.run(target.indices, dsm, target.name.c_str(), target.id, config, profiles);
     }
 }
 
@@ -200,8 +201,12 @@ int main(int argc, char* argv[])
     const auto queries = load_sequences(config.seq1_file_name, config.seq1_cli, "query");
     const auto targets = load_sequences(config.seq2_file_name, config.seq2_cli, "target");
 
+    /* Built here rather than per target: a query's profile does not depend on
+       the target it is swept against. */
+    QueryProfileCache profiles(dsm);
+
     for (const auto& target : targets) {
-        process_target(target, queries, dsm, config);
+        process_target(target, queries, dsm, config, profiles);
     }
 
     return 0;
