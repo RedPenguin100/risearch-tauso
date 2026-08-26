@@ -202,14 +202,19 @@ score_target_batched(const unsigned char* target_sequence, const BatchedQueryPro
            scan enters its first column with. */
         __m256i ix_scan = v_int_to_avx2<std::int16_t>(NEG_INF_SHORT);
 
-        for (auto i = 2u; i < m; i++) {
+        const std::int16_t* pair_at = T.pair + 2 * BatchedQueryProfile::kPairGroup;
+        const std::int16_t* solo_at = T.solo + 2 * BatchedQueryProfile::kSoloGroup;
+
+        for (auto i = 2u; i < m; i++, pair_at += BatchedQueryProfile::kPairGroup,
+                  solo_at += BatchedQueryProfile::kSoloGroup) {
             const auto off = i * queries;
             scan += scan_stride;
 
             const __m256i m_last_here = v_vec_load(m_last + off);
             const __m256i iy_last_here = v_vec_load(iy_last + off);
 
-            main_dp_column_batched<kDefer>(T.column(i), m_last_prev, iy_last_prev, m_last_here,
+            main_dp_column_batched<kDefer>(BatchedQueryProfile::RowView::column_at(pair_at, solo_at),
+                                           m_last_prev, iy_last_prev, m_last_here,
                                            iy_last_here, ix_scan, iy_ext, m_cur + off, iy_cur + off,
                                            &row_max);
 
