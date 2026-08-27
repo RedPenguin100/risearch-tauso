@@ -12,21 +12,27 @@ In the future, we might improve that as well. (Please open issues if that is of 
 
 ## Benchmarking
 
-The code now is about 30x faster than the original C in various settings: 
+The code now is 20x to 47x faster than the original C, depending on how the target
+is divided into records:
 
-| queries | target file | upstream C | 1.6.0 | speedup |
+| queries | target file | upstream C | 1.6.1 | speedup |
 | --- | --- | --- | --- | --- |
-| 16 | 4 000 records x 600 nt | 5.100 s | 0.175 s | **29.0x** |
-| 16 | 1 000 records x 2 500 nt | 4.745 s | 0.150 s | **31.6x** |
-| 16 | 120 records x 20 000 nt | 4.321 s | 0.134 s | **32.2x** |
-| 16 | 1 record x 2 400 000 nt | 4.241 s | 0.165 s | **25.6x** |
+| 16 | 4 000 records x 600 nt | 6.301 s | 0.263 s | **24.0x** |
+| 16 | 960 records x 2 500 nt | 5.288 s | 0.144 s | **36.8x** |
+| 16 | 120 records x 20 000 nt | 4.902 s | 0.109 s | **45.1x** |
+| 16 | 1 record x 2 400 000 nt | 4.853 s | 0.131 s | **37.2x** |
+| 64 | 960 records x 2 500 nt | 20.937 s | 0.578 s | **36.2x** |
+| 256 | 960 records x 2 500 nt | 83.500 s | 2.311 s | **36.1x** |
 
 the main speedups were in the traceback and the linSpace algorithms, 
 and for multi-target setting some caching is often needed to retrieve this speed.
 
 The optimal speed is gained per query when sending queries as multiples of 16.
-Most of the improvements rely on AVX2, but not all. The scalar code is about 1.4x faster
+Most of the improvements rely on AVX2, but not all. The scalar code is about 1.8x faster
 even on machines without AVX2.
+
+The full table, and the fixed-seed generator the inputs come from, are in the
+[README](README.md#performance).
 
 ## Backwards compatibility
 
@@ -82,6 +88,13 @@ Older compilers (gcc10) would default to swapping 256-bit access into two 128-bi
 the code. Later compilers (gcc11) changed that, so the flag only matters for older toolchains
 
 * Added a compile options to remove deprecated default from GCC10, for an about 45% performance boost(!!!)
+
+## 1.6.1 - 2026-08-27
+
+Performance, no change in output:
+* The sweep walks the query profile's column bases instead of multiplying the
+  column number out again on every column
+* The kernel loops are unrolled
 
 ## 1.6.0 - 2026-08-26
 
