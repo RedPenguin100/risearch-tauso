@@ -138,8 +138,8 @@ __attribute__((target("avx2"))) static void
 score_target_batched(const unsigned char* target_sequence, const BatchedQueryProfile& profile,
                      std::int16_t* const* M, std::int16_t* const* Iy,
                      const std::int16_t* ix_from_m_scan_row1, std::int16_t* run_scores,
-                     std::int16_t* run_positions, std::size_t n, int threshold,
-                     BatchedRunningMax& running_max)
+                     std::int16_t* run_positions, std::uint16_t* row_clears, std::size_t n,
+                     int threshold, BatchedRunningMax& running_max)
 {
     const auto m = profile.m();
     constexpr auto queries = BatchedQueryProfile::kLanes;
@@ -263,6 +263,8 @@ score_target_batched(const unsigned char* target_sequence, const BatchedQueryPro
 
             v_vec_store(run_scores + (j - 1) * queries, exact);
             v_vec_store(run_positions + (j - 1) * queries, row_pos);
+            row_clears[j - 1] = static_cast<std::uint16_t>(
+                v_lane_bits16(v_greater_than<std::int16_t>(exact, v_threshold)));
 
             running_max.score = v_max<std::int16_t>(running_max.score, exact);
             gate = v_min<std::int16_t>(running_max.score, v_threshold);
@@ -276,6 +278,9 @@ score_target_batched(const unsigned char* target_sequence, const BatchedQueryPro
             /* The position is read only where a row reported, and such a row went
                the other way, so this one's is left as it lies. */
             v_vec_store(run_scores + (j - 1) * queries, bound);
+            /* The gate is at most the threshold and this row did not clear the
+               gate, so no lane of it clears the threshold either. */
+            row_clears[j - 1] = 0;
         }
 
         /* The row just written becomes the row read. */
