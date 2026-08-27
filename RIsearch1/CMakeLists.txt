@@ -60,6 +60,13 @@ set(RISEARCH1_WARNINGS -Wall -Wextra -pedantic
 # the unreferenced ones at link time. One without the other does nothing.
 set(RISEARCH1_COMPILE_OPTS -O3 -ffunction-sections -fdata-sections)
 
+# Unroll where gcc judges it worthwhile. The kernels are written as intrinsics, so
+# nothing here relies on the vectoriser, but the sweep and the traceback both run
+# short bodies whose loop overhead is a real share of their time: unrolling is
+# worth about 5% of a run. Choosing the factor by hand is worse than leaving it
+# to gcc -- forcing two on the sweep's inner loop alone measures slower.
+list(APPEND RISEARCH1_COMPILE_OPTS -funroll-loops)
+
 # Never split a 256-bit unaligned access into two 128-bit ones. GCC 10 and older
 # do that by default: it suited Sandy Bridge, whose load path was 128 bits wide
 # internally, and AMD Bulldozer, which cracked every 256-bit op in two. Haswell

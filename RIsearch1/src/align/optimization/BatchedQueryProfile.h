@@ -197,12 +197,18 @@ public:
         const std::int16_t* solo;
         std::int16_t iy_extend;
 
-        ColumnTerms column(unsigned i) const
+        /* The terms a column reads, given the two group bases it reads them from.
+           A loop that walks consecutive columns advances the bases by one group
+           each step rather than multiplying the column number out again. */
+        static ColumnTerms column_at(const std::int16_t* p, const std::int16_t* s)
         {
-            const std::int16_t* const p = pair + i * kPairGroup;
-            const std::int16_t* const s = solo + i * kSoloGroup;
             return {p + kMFromM * kLanes, s + kMFromIx * kLanes, p + kMFromIy * kLanes,
                     s + kMOpen * kLanes,  s + kClose * kLanes,   p + kIyFromM * kLanes};
+        }
+
+        ColumnTerms column(unsigned i) const
+        {
+            return column_at(pair + i * kPairGroup, solo + i * kSoloGroup);
         }
     };
 
