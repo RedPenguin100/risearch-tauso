@@ -14,7 +14,7 @@ The fork is actively maintained and covers the RIsearch1 executable, above all
 the standard linear-space search path. Its goals are:
 
 * Correctness: fix the crashes, leaks and hangs listed in [BUGFIXES.md](BUGFIXES.md)
-* Much faster (20x to 47x) by SIMD, caching and taking heavy calc out of loops
+* Much faster (21x to 49x) by SIMD, caching and taking heavy calc out of loops
 * Readability: functions that do one thing, named types, comments that explain why
 * Tests: unit tests, end-to-end tests, and regression against a reference binary
 
@@ -30,20 +30,20 @@ which agree within 1%. Each timing is the best of three blocks, where a block ru
 the binary N times and divides by N: one run alone is short enough that a single
 `time` call would be measuring the 10 ms clock rather than the program.
 
-| queries | targets | upstream C | 1.6.1 | speedup |
+| queries | targets | upstream C | 1.6.2 | speedup |
 | --- | --- | --- | --- | --- |
-| 16 x 20 nt | 4 000 records x 600 nt | 6.301 s | 0.263 s | **24.0x** |
-| 16 x 20 nt | 960 records x 2 500 nt | 5.288 s | 0.144 s | **36.8x** |
-| 16 x 20 nt | 120 records x 20 000 nt | 4.902 s | 0.109 s | **45.1x** |
-| 16 x 20 nt | 1 record x 2 400 000 nt | 4.853 s | 0.131 s | **37.2x** |
-| 64 x 20 nt | 4 000 records x 600 nt | 24.276 s | 1.125 s | **21.6x** |
-| 64 x 20 nt | 960 records x 2 500 nt | 20.937 s | 0.578 s | **36.2x** |
-| 64 x 20 nt | 120 records x 20 000 nt | 19.532 s | 0.415 s | **47.1x** |
-| 64 x 20 nt | 1 record x 2 400 000 nt | 19.356 s | 0.437 s | **44.3x** |
-| 256 x 20 nt | 4 000 records x 600 nt | 95.614 s | 4.616 s | **20.7x** |
-| 256 x 20 nt | 960 records x 2 500 nt | 83.500 s | 2.311 s | **36.1x** |
-| 256 x 20 nt | 120 records x 20 000 nt | 77.995 s | 1.634 s | **47.7x** |
-| 256 x 20 nt | 1 record x 2 400 000 nt | 77.218 s | 1.660 s | **46.5x** |
+| 16 x 20 nt | 4 000 records x 600 nt | 6.307 s | 0.262 s | **24.1x** |
+| 16 x 20 nt | 960 records x 2 500 nt | 5.296 s | 0.142 s | **37.2x** |
+| 16 x 20 nt | 120 records x 20 000 nt | 4.909 s | 0.106 s | **46.3x** |
+| 16 x 20 nt | 1 record x 2 400 000 nt | 4.844 s | 0.126 s | **38.6x** |
+| 64 x 20 nt | 4 000 records x 600 nt | 24.135 s | 1.120 s | **21.5x** |
+| 64 x 20 nt | 960 records x 2 500 nt | 20.858 s | 0.567 s | **36.8x** |
+| 64 x 20 nt | 120 records x 20 000 nt | 19.532 s | 0.404 s | **48.3x** |
+| 64 x 20 nt | 1 record x 2 400 000 nt | 19.323 s | 0.414 s | **46.7x** |
+| 256 x 20 nt | 4 000 records x 600 nt | 95.545 s | 4.562 s | **20.9x** |
+| 256 x 20 nt | 960 records x 2 500 nt | 83.100 s | 2.266 s | **36.7x** |
+| 256 x 20 nt | 120 records x 20 000 nt | 78.003 s | 1.605 s | **48.6x** |
+| 256 x 20 nt | 1 record x 2 400 000 nt | 77.260 s | 1.566 s | **49.3x** |
 
 Every target file holds the same 2 400 000 nt and differs only in how it is divided
 into records, so the alignment work is the same in each. The 600 nt rows come out
@@ -51,15 +51,15 @@ lowest because a shorter record reports more hits, and every hit costs a traceba
 
 At 2 000 queries, where running the C would take about half an hour a row:
 
-| queries | targets | 1.6.1 |
+| queries | targets | 1.6.2 |
 | --- | --- | --- |
-| 2 000 x 20 nt | 4 000 records x 600 nt | 48.914 s |
-| 2 000 x 20 nt | 960 records x 2 500 nt | 21.244 s |
-| 2 000 x 20 nt | 120 records x 20 000 nt | 13.141 s |
-| 2 000 x 20 nt | 1 record x 2 400 000 nt | 12.629 s |
+| 2 000 x 20 nt | 4 000 records x 600 nt | 48.948 s |
+| 2 000 x 20 nt | 960 records x 2 500 nt | 20.990 s |
+| 2 000 x 20 nt | 120 records x 20 000 nt | 12.826 s |
+| 2 000 x 20 nt | 1 record x 2 400 000 nt | 11.916 s |
 
 Without AVX2 -- `RISEARCH_NO_AVX2=1`, which also turns off the batched sweep -- 16
-queries against 960 x 2 500 nt takes 2.969 s, still 1.8x the C.
+queries against 960 x 2 500 nt takes 2.982 s, still 1.8x the C.
 
 The inputs are generated from a fixed seed, so the table can be reproduced:
 

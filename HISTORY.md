@@ -12,17 +12,17 @@ In the future, we might improve that as well. (Please open issues if that is of 
 
 ## Benchmarking
 
-The code now is 20x to 47x faster than the original C, depending on how the target
+The code now is 21x to 49x faster than the original C, depending on how the target
 is divided into records:
 
-| queries | target file | upstream C | 1.6.1 | speedup |
+| queries | target file | upstream C | 1.6.2 | speedup |
 | --- | --- | --- | --- | --- |
-| 16 | 4 000 records x 600 nt | 6.301 s | 0.263 s | **24.0x** |
-| 16 | 960 records x 2 500 nt | 5.288 s | 0.144 s | **36.8x** |
-| 16 | 120 records x 20 000 nt | 4.902 s | 0.109 s | **45.1x** |
-| 16 | 1 record x 2 400 000 nt | 4.853 s | 0.131 s | **37.2x** |
-| 64 | 960 records x 2 500 nt | 20.937 s | 0.578 s | **36.2x** |
-| 256 | 960 records x 2 500 nt | 83.500 s | 2.311 s | **36.1x** |
+| 16 | 4 000 records x 600 nt | 6.307 s | 0.262 s | **24.1x** |
+| 16 | 960 records x 2 500 nt | 5.296 s | 0.142 s | **37.2x** |
+| 16 | 120 records x 20 000 nt | 4.909 s | 0.106 s | **46.3x** |
+| 16 | 1 record x 2 400 000 nt | 4.844 s | 0.126 s | **38.6x** |
+| 64 | 960 records x 2 500 nt | 20.858 s | 0.567 s | **36.8x** |
+| 256 | 1 record x 2 400 000 nt | 77.260 s | 1.566 s | **49.3x** |
 
 the main speedups were in the traceback and the linSpace algorithms, 
 and for multi-target setting some caching is often needed to retrieve this speed.
@@ -88,6 +88,12 @@ Older compilers (gcc10) would default to swapping 256-bit access into two 128-bi
 the code. Later compilers (gcc11) changed that, so the flag only matters for older toolchains
 
 * Added a compile options to remove deprecated default from GCC10, for an about 45% performance boost(!!!)
+
+## 1.6.2 - 2026-08-27
+
+Performance, no change in output:
+* The sweep says which rows clear the threshold as it goes, rather than the runs
+  being read back afterwards to work it out
 
 ## 1.6.1 - 2026-08-27
 
