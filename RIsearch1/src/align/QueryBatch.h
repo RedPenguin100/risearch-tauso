@@ -206,6 +206,7 @@ private:
         m_iy_rows.reserve(2 * query_stride);
         m_scan_row1.reserve(query_stride);
         m_scores_by_row.reserve(target_stride);
+        m_row_clears.reserve(n);
         m_positions_by_row.reserve(target_stride);
         /* The runs laid out by query are what a vicinity window reads; without
            one the reporting takes the sweep's own layout and these are never
@@ -242,16 +243,21 @@ private:
         if (!init_first_row(*m_profile, m, target[n - 1], dsm, first_score, first_pos)) {
             return false;
         }
+        unsigned first_clears = 0;
         for (auto lane = 0u; lane < kQueries; lane++) {
             m_scores_by_row[lane] = first_score[lane];
             m_positions_by_row[lane] = first_pos[lane];
+            if (first_score[lane] > m_threshold) {
+                first_clears |= 1u << lane;
+            }
         }
+        m_row_clears[0] = static_cast<std::uint16_t>(first_clears);
 
         run_sweep(*m_profile, target, n, first_score, first_pos);
         if (m_exact_rows) {
             deinterleave(n);
         } else {
-            build_clear_bits(n, threshold);
+            build_clear_bits(n);
         }
         m_n = n;
         return true;
@@ -343,27 +349,18 @@ private:
        threshold? Held per query so a run is read at a sixteenth of what the
        scores are, with the OR over each group of thirty-two rows beside it so a
        group none of them clears is one test. */
-    __attribute__((target("avx2"))) void build_clear_bits(int n, int threshold)
+    void build_clear_bits(int n)
     {
         const auto words = (static_cast<std::size_t>(n) + 31) / 32;
         m_clears.reserve(words * kQueries);
-
         std::memset(m_clears.get(), 0, words * kQueries * sizeof(std::uint32_t));
 
-
-        const __m256i thr = v_int_to_avx2<std::int16_t>(static_cast<std::int16_t>(
-            threshold > SHRT_MAX ? SHRT_MAX : (threshold < SHRT_MIN ? SHRT_MIN : threshold)));
-
         for (auto j = 0; j < n; j++) {
-            const __m256i v =
-                v_vec_load(m_scores_by_row.get() + static_cast<std::size_t>(j) * kQueries);
-            /* One bit per query, out of a sixteen lane compare. */
-            auto bits = v_lane_bits16(v_greater_than<std::int16_t>(v, thr));
+            auto bits = static_cast<unsigned>(m_row_clears[j]);
             while (bits) {
                 const auto q = static_cast<unsigned>(__builtin_ctz(bits));
                 bits &= bits - 1;
-                const auto base = static_cast<std::size_t>(q) * words;
-                m_clears[base + j / 32] |= 1u << (j % 32);
+                m_clears[static_cast<std::size_t>(q) * words + j / 32] |= 1u << (j % 32);
             }
         }
         m_clear_words = words;
@@ -425,11 +422,11 @@ private:
            standing as a bound. */
         if (m_exact_rows) {
             score_target_batched<false>(target, profile, M, Iy, m_scan_row1.get(),
-                                        m_scores_by_row.get(), m_positions_by_row.get(),
+                                        m_scores_by_row.get(), m_positions_by_row.get(), m_row_clears.get(),
                                         static_cast<std::size_t>(n), m_threshold, best);
         } else {
             score_target_batched<true>(target, profile, M, Iy, m_scan_row1.get(),
-                                       m_scores_by_row.get(), m_positions_by_row.get(),
+                                       m_scores_by_row.get(), m_positions_by_row.get(), m_row_clears.get(),
                                        static_cast<std::size_t>(n), m_threshold, best);
         }
 
@@ -487,6 +484,10 @@ private:
     GrowableBuffer<std::int16_t> m_scores_by_query, m_positions_by_query;
     /* Target position 1, computed in int32 before the sweep begins. */
     GrowableBuffer<int> m_first_row;
+    /* One sixteen-lane mask a target position: which queries' rows clear the
+       threshold. Written by the sweep, where the row's score is already in a
+       register, so the bits are had without reading the runs back. */
+    GrowableBuffer<std::uint16_t> m_row_clears;
     GrowableBuffer<std::uint32_t> m_clears;
     std::size_t m_clear_words = 0;
     std::int16_t m_best_score[kQueries]{};
