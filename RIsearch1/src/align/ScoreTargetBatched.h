@@ -205,6 +205,11 @@ score_target_batched(const unsigned char* target_sequence, const BatchedQueryPro
         const std::int16_t* pair_at = T.pair + 2 * BatchedQueryProfile::kPairGroup;
         const std::int16_t* solo_at = T.solo + 2 * BatchedQueryProfile::kSoloGroup;
 
+        /* Eight columns a turn. gcc settles on two left to itself, which leaves
+           the loop a little short of independent work to schedule against its
+           own carried values; eight measures about 1.5% better where a target is
+           one long record, and no worse elsewhere. */
+#pragma GCC unroll 8
         for (auto i = 2u; i < m; i++, pair_at += BatchedQueryProfile::kPairGroup,
                   solo_at += BatchedQueryProfile::kSoloGroup) {
             const auto off = i * queries;
