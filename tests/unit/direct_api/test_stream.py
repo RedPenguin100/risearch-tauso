@@ -110,3 +110,22 @@ def test_warnings_do_not_stall_the_stream(tmp_path):
 
     with risearch_tauso.stream(args_for(query, target)) as batches:
         list(batches)
+
+
+def test_a_missing_pyarrow_names_the_extra(monkeypatch, pair):
+    """The failure has to say where pyarrow comes from, not just that it is absent."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def without_pyarrow(name, *args, **kwargs):
+        if name.startswith("pyarrow"):
+            raise ImportError("pyarrow is not installed")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_pyarrow)
+
+    query, target = pair
+    with pytest.raises(ImportError, match=r"risearch-tauso\[arrow\]"):
+        with risearch_tauso.stream(args_for(query, target)):
+            pass

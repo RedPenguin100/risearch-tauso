@@ -107,19 +107,26 @@ def run(
     return completed
 
 
-def _arrow():
+def _require_arrow():
+    """The pyarrow CSV reader, or an error naming the extra that carries it.
+
+    pyarrow is an optional dependency, so it is imported here rather than at the
+    top: `import risearch_tauso` has to keep working for callers who only want
+    run() or the console script.
+    """
     try:
-        import pyarrow as pa
         import pyarrow.csv as pacsv
-    except ImportError as exc:  # pragma: no cover - depends on what is installed
+    except ImportError as exc:
         raise ImportError(
             "stream() needs pyarrow: pip install 'risearch-tauso[arrow]'"
         ) from exc
-    return pa, pacsv
+    return pacsv
 
 
-def _hit_types(pa):
+def _hit_types():
     """Coordinates and scores are C ints; energy keeps the width it is printed at."""
+    import pyarrow as pa
+
     return {
         "qname": pa.string(),
         "qbeg": pa.int32(),
@@ -132,7 +139,10 @@ def _hit_types(pa):
     }
 
 
-def _batches(pa, pacsv, stdout, read_options, parse_options, convert_options):
+def _batches(stdout, read_options, parse_options, convert_options):
+    import pyarrow as pa
+    import pyarrow.csv as pacsv
+
     try:
         reader = pacsv.open_csv(
             stdout,
@@ -171,7 +181,7 @@ def stream(
     stderr goes to a temporary file, not a pipe: it writes a warning per
     nonstandard base, and a pipe nobody drains fills up and stops the process.
     """
-    pa, pacsv = _arrow()
+    pacsv = _require_arrow()
 
     if any(a.startswith("-p") for a in args):
         raise ValueError("stream() sets the output format itself; leave -p out of args")
@@ -179,7 +189,7 @@ def stream(
     if unknown:
         raise ValueError(f"not RIsearch hit columns: {unknown}")
 
-    types = _hit_types(pa)
+    types = _hit_types()
     read_options = pacsv.ReadOptions(
         column_names=list(HIT_COLUMNS), use_threads=False, block_size=block_size
     )
@@ -199,7 +209,7 @@ def stream(
         )
         try:
             yield _batches(
-                pa, pacsv, proc.stdout, read_options, parse_options, convert_options
+                proc.stdout, read_options, parse_options, convert_options
             )
         except BaseException:
             # The caller stopped early or failed; theirs is the error worth
