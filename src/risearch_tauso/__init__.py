@@ -14,7 +14,20 @@ from importlib.metadata import version as _installed_version
 from importlib.resources import files
 from pathlib import Path
 
-__all__ = ["executable_path", "run", "__version__"]
+__all__ = ["RIsearchError", "executable_path", "run", "__version__"]
+
+
+class RIsearchError(subprocess.CalledProcessError):
+    """A RIsearch run that exited non-zero.
+
+    Subclasses CalledProcessError, so `except subprocess.CalledProcessError`
+    catches it. What it adds is RIsearch's own stderr in the message, which is
+    where the reason for the failure is written.
+    """
+
+    def __str__(self) -> str:
+        reason = (self.stderr or "").strip()
+        return f"{super().__str__()} {reason}" if reason else super().__str__()
 
 # Read back from the installed distribution, whose version comes from
 # pyproject.toml -- the same place CMake reads it for the binary's banner. A
@@ -55,15 +68,23 @@ def run(
     `cwd` is what RIsearch resolves relative paths against, the `-m` energy
     matrix among them.
 
+    A run that fails raises RIsearchError, so an empty result means RIsearch
+    found no hits rather than that it never searched. `check=False` hands the
+    failure back instead of raising.
+
     Output is buffered in memory, and RIsearch prints a line per hit, which a
     large run reaches tens of millions of. Read stdout incrementally for those.
     """
-    return subprocess.run(
+    completed = subprocess.run(
         [executable_path(), *args],
         stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
         cwd=cwd,
         timeout=timeout,
-        check=check,
     )
+    if check and completed.returncode != 0:
+        raise RIsearchError(
+            completed.returncode, completed.args, completed.stdout, completed.stderr
+        )
+    return completed
