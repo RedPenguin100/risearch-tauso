@@ -77,10 +77,32 @@ def test_the_failure_is_a_called_process_error(tmp_path):
             list(batches)
 
 
-def test_an_output_format_in_args_is_refused(pair):
+def test_the_readable_format_may_be_passed_outright(pair):
+    """-p2 is what stream() reads, so saying so explicitly is not an error."""
     query, target = pair
-    with pytest.raises(ValueError, match="leave -p out"):
-        with pyrisearch_tauso.stream(args_for(query, target) + ["-p3"]):
+    with pyrisearch_tauso.stream(args_for(query, target) + ["-p2"]) as batches:
+        assert pa.Table.from_batches(list(batches)).num_rows > 0
+
+
+def test_the_readable_format_may_be_written_separately(pair):
+    """RIsearch takes -p2 and -p 2 alike, so both have to be recognised."""
+    query, target = pair
+    with pyrisearch_tauso.stream(args_for(query, target) + ["-p", "2"]) as batches:
+        assert pa.Table.from_batches(list(batches)).num_rows > 0
+
+
+@pytest.mark.parametrize("fmt", [["-p1"], ["-p3"], ["-p", "1"], ["-p", "3"]])
+def test_a_format_nothing_parses_yet_is_refused(pair, fmt):
+    query, target = pair
+    with pytest.raises(NotImplementedError, match="nothing parses yet"):
+        with pyrisearch_tauso.stream(args_for(query, target) + fmt):
+            pass
+
+
+def test_a_value_that_is_not_a_format_is_refused(pair):
+    query, target = pair
+    with pytest.raises(ValueError, match="not a RIsearch output format"):
+        with pyrisearch_tauso.stream(args_for(query, target) + ["-p9"]):
             pass
 
 

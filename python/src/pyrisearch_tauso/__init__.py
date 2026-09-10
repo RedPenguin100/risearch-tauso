@@ -51,6 +51,11 @@ HIT_TYPES = {
     "energy": pa.float64(),
 }
 
+# What RIsearch's -p values print. Only the eight-column table is parsed here;
+# the others have a shape of their own and nothing reads them yet.
+KNOWN_FORMATS = ("1", "2", "3")
+READABLE_FORMAT = "2"
+
 # Peak memory follows this rather than the size of the run, and parsing does not
 # get cheaper as it grows: 16 MB blocks held a 670 MB run to 282 MB, 64 MB blocks
 # to 738 MB, for the same wall time.
@@ -105,6 +110,32 @@ def run(
     return completed
 
 
+def _output_format(args):
+    """The -p value in args, or None. RIsearch takes it attached or separate."""
+    args = list(args)
+    for i, arg in enumerate(args):
+        if arg == "-p":
+            return args[i + 1] if i + 1 < len(args) else ""
+        if arg.startswith("-p"):
+            return arg[2:]
+    return None
+
+
+def _with_format(args):
+    """args as RIsearch should get them, once the output format is settled."""
+    fmt = _output_format(args)
+    if fmt is None:
+        return [*args, f"-p{READABLE_FORMAT}"]
+    if fmt == READABLE_FORMAT:
+        return list(args)
+    if fmt in KNOWN_FORMATS:
+        raise NotImplementedError(
+            f"stream() reads the -p{READABLE_FORMAT} table; -p{fmt} prints a different "
+            "shape, which nothing parses yet"
+        )
+    raise ValueError(f"not a RIsearch output format: -p{fmt}")
+
+
 def _batches(stdout, read_options, parse_options, convert_options):
     try:
         reader = pacsv.open_csv(
@@ -132,9 +163,11 @@ def stream(
 ) -> Iterator[Iterator[pa.RecordBatch]]:
     """Run RIsearch and read its hits as pyarrow record batches.
 
-    `args` carries RIsearch's own options without an output format -- this reads
-    the eight-column table and passes `-p2` itself. `columns` picks the subset to
-    parse, and the rest are never converted.
+    `args` carries RIsearch's own options. The output format may be left out, in
+    which case `-p2` is added; `-p2` may also be passed outright. The other
+    formats raise NotImplementedError -- RIsearch prints them, this does not read
+    them yet. `columns` picks the subset to parse, and the rest are never
+    converted.
 
     Batches arrive while RIsearch is still running, so what is held at once
     follows `block_size` and not the length of the run. Reducing each batch as it
@@ -144,8 +177,7 @@ def stream(
     stderr goes to a temporary file, not a pipe: it writes a warning per
     nonstandard base, and a pipe nobody drains fills up and stops the process.
     """
-    if any(a.startswith("-p") for a in args):
-        raise ValueError("stream() sets the output format itself; leave -p out of args")
+    args = _with_format(args)
     unknown = [c for c in columns if c not in HIT_COLUMNS]
     if unknown:
         raise ValueError(f"not RIsearch hit columns: {unknown}")
@@ -160,7 +192,7 @@ def stream(
 
     with tempfile.TemporaryFile() as errors:
         proc = subprocess.Popen(
-            [executable_path(), *args, "-p2"],
+            [executable_path(), *args],
             stdout=subprocess.PIPE,
             stderr=errors,
             stdin=subprocess.DEVNULL,
