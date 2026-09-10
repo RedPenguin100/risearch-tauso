@@ -41,6 +41,13 @@ jobs:
           cmake --build /tmp/wheelbuild --target RIsearch -j
           test -x RIsearch1/bin/RIsearch
 
+      # The editable install puts the binary where the package looks for it, so
+      # these tests exercise the same lookup a wheel does.
+      - name: Python package
+        run: |
+          pip install -e . pytest
+          pytest tests -q
+
   gcc10:
     name: Build and test with GCC 10 (the wheel compiler)
     runs-on: ubuntu-latest
