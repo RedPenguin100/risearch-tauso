@@ -3,6 +3,8 @@
 Both forward all arguments straight to the bundled RIsearch binary.
 """
 
+from __future__ import annotations
+
 import os
 import sys
 
