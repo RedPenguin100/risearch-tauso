@@ -5,14 +5,13 @@ command-line options; `executable_path()` hands back the path for callers that
 drive the process themselves.
 """
 
-from __future__ import annotations
-
 import subprocess
 from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _installed_version
 from importlib.resources import files
 from pathlib import Path
+from typing import Optional, Union
 
 __all__ = ["RIsearchError", "executable_path", "run", "__version__"]
 
@@ -58,8 +57,8 @@ def executable_path() -> str:
 def run(
     args: Sequence[str],
     *,
-    cwd: str | Path | None = None,
-    timeout: float | None = None,
+    cwd: Optional[Union[str, Path]] = None,
+    timeout: Optional[float] = None,
     check: bool = True,
 ) -> subprocess.CompletedProcess[str]:
     """Run the bundled RIsearch and return the finished process.
