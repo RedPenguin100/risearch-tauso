@@ -41,12 +41,13 @@ jobs:
           cmake --build /tmp/wheelbuild --target RIsearch -j
           test -x RIsearch1/bin/RIsearch
 
-      # The editable install puts the binary where the package looks for it, so
-      # these tests exercise the same lookup a wheel does.
-      - name: Python package
+      # pyrisearch-tauso drives the binary risearch-tauso ships, so both are
+      # installed from this checkout rather than the API package taking the
+      # published binary off PyPI.
+      - name: Python API
         run: |
-          pip install -e . pytest
-          pytest tests -q
+          pip install -e . -e ./python pytest
+          pytest python/tests -q
 
   gcc10:
     name: Build and test with GCC 10 (the wheel compiler)

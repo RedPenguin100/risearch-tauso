@@ -2,7 +2,7 @@ import subprocess
 
 import pytest
 
-import risearch_tauso
+import pyrisearch_tauso
 
 QUERY_NAME = "q1"
 TARGET_NAME = "t1"
@@ -22,7 +22,7 @@ def pair(tmp_path):
 
 def test_hit_parsing(pair):
     query, target = pair
-    result = risearch_tauso.run(["-q", str(query), "-t", str(target), "-s", "500", "-p2"])
+    result = pyrisearch_tauso.run(["-q", str(query), "-t", str(target), "-s", "500", "-p2"])
 
     assert result.returncode == 0
     lines = result.stdout.splitlines()
@@ -33,7 +33,7 @@ def test_hit_parsing(pair):
 
 def test_query_target_name_parsing(pair):
     query, target = pair
-    result = risearch_tauso.run(["-q", str(query), "-t", str(target), "-s", "500", "-p2"])
+    result = pyrisearch_tauso.run(["-q", str(query), "-t", str(target), "-s", "500", "-p2"])
 
     qname, _qbeg, _qend, tname = result.stdout.splitlines()[0].split("\t")[:4]
     assert (qname, tname) == (QUERY_NAME, TARGET_NAME)
@@ -42,7 +42,7 @@ def test_query_target_name_parsing(pair):
 def test_no_hits_is_not_a_failure(pair):
     """A threshold nothing reaches: RIsearch searched and found none."""
     query, target = pair
-    result = risearch_tauso.run(["-q", str(query), "-t", str(target), "-s", "100000", "-p2"])
+    result = pyrisearch_tauso.run(["-q", str(query), "-t", str(target), "-s", "100000", "-p2"])
 
     assert result.returncode == 0
     assert result.stdout == ""
@@ -50,28 +50,28 @@ def test_no_hits_is_not_a_failure(pair):
 
 def test_check_raises_on_failure(pair):
     query, _ = pair
-    with pytest.raises(risearch_tauso.RIsearchError):
-        risearch_tauso.run(["-q", str(query)])
+    with pytest.raises(pyrisearch_tauso.RIsearchError):
+        pyrisearch_tauso.run(["-q", str(query)])
 
 
 def test_failure_is_a_called_process_error(pair):
     """Callers already catching subprocess.CalledProcessError keep working."""
     query, _ = pair
     with pytest.raises(subprocess.CalledProcessError):
-        risearch_tauso.run(["-q", str(query)])
+        pyrisearch_tauso.run(["-q", str(query)])
 
 
 def test_failure_message_names_the_reason(tmp_path):
     missing = tmp_path / "nope.fa"
-    with pytest.raises(risearch_tauso.RIsearchError) as excinfo:
-        risearch_tauso.run(["-q", str(missing), "-t", str(missing), "-s", "500", "-p2"])
+    with pytest.raises(pyrisearch_tauso.RIsearchError) as excinfo:
+        pyrisearch_tauso.run(["-q", str(missing), "-t", str(missing), "-s", "500", "-p2"])
 
     assert "not readable" in str(excinfo.value)
 
 
 def test_check_false_returns_the_failure(pair):
     query, _ = pair
-    result = risearch_tauso.run(["-q", str(query)], check=False)
+    result = pyrisearch_tauso.run(["-q", str(query)], check=False)
 
     assert result.returncode != 0
 
@@ -83,7 +83,7 @@ def test_warning_stays_out_of_stdout(tmp_path):
     query.write_text(QUERY)
     target.write_text(f">{TARGET_NAME}\nZAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGC\n")
 
-    result = risearch_tauso.run(["-q", str(query), "-t", str(target), "-s", "500", "-p2"])
+    result = pyrisearch_tauso.run(["-q", str(query), "-t", str(target), "-s", "500", "-p2"])
 
     assert result.returncode == 0
     assert "Nonstandard" in result.stderr
@@ -94,4 +94,4 @@ def test_warning_stays_out_of_stdout(tmp_path):
 
 
 def test_executable_path_is_the_bundled_binary():
-    assert risearch_tauso.executable_path().endswith("/bin/RIsearch")
+    assert pyrisearch_tauso.executable_path().endswith("/bin/RIsearch")
