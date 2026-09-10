@@ -45,7 +45,7 @@ jobs:
       # these tests exercise the same lookup a wheel does.
       - name: Python package
         run: |
-          pip install -e . pytest
+          pip install -e '.[arrow]' pytest
           pytest tests -q
 
   gcc10:
