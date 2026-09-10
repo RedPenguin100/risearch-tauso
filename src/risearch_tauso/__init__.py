@@ -51,18 +51,12 @@ def run(
 ) -> subprocess.CompletedProcess[str]:
     """Run the bundled RIsearch and return the finished process.
 
-    `args` carries RIsearch's own options; the binary path is prepended here, so
-    a caller writes `run(["-q", queries, "-t", targets, "-s", "900", "-p2"])`.
+    `args` carries RIsearch's own options -- the binary path is prepended here.
+    `cwd` is what RIsearch resolves relative paths against, the `-m` energy
+    matrix among them.
 
-    stdout and stderr are captured separately as text, so a warning on stderr
-    cannot land in the middle of the hit table. `cwd` sets the directory
-    RIsearch resolves relative paths against, the `-m` energy matrix among them.
-    `check` raises subprocess.CalledProcessError on a non-zero exit.
-
-    Everything RIsearch writes is held in memory. It prints one line per hit, and
-    that count grows with the product of the inputs: sixteen 20-nt queries against
-    4000 records of 600 nt at `-s 900` come to 16.4 million lines. Read the
-    process's stdout incrementally for runs of that size.
+    Output is buffered in memory, and RIsearch prints a line per hit, which a
+    large run reaches tens of millions of. Read stdout incrementally for those.
     """
     return subprocess.run(
         [executable_path(), *args],
