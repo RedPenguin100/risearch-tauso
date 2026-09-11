@@ -1,16 +1,18 @@
 """A Python API over the RIsearch binary that risearch-tauso ships.
 
-`run()` drives one search and hands back the finished process. `stream()` reads
-the hits as pyarrow record batches while the search is still going, which is what
-a large one needs: RIsearch prints a line per hit, and that count grows with the
-product of the inputs.
+`search()` takes sequences and gives back the hits as pyarrow record batches,
+reading them while RIsearch is still going -- which is what a large search needs,
+since RIsearch prints a line per hit and that count grows with the product of the
+inputs. `stream()` is the same thing for inputs that are already FASTA files, and
+`run()` drives one search and hands back the finished process.
 """
 
 from __future__ import annotations
 
+import os
 import subprocess
 import tempfile
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _installed_version
@@ -27,6 +29,7 @@ __all__ = [
     "RIsearchError",
     "executable_path",
     "run",
+    "search",
     "stream",
     "__version__",
 ]
@@ -219,3 +222,103 @@ def stream(
                 )
         finally:
             proc.stdout.close()
+
+
+def _scratch_dir():
+    """Where the FASTA files a search writes go.
+
+    tempfile.gettempdir() reads TMPDIR, which is how a machine says where its
+    scratch space is. What is written stays in the page cache, so RIsearch reads
+    it back out of memory, and the kernel is free to drop it when memory is
+    wanted elsewhere -- which a tmpfs like /dev/shm cannot do, since what is
+    written there is held until it is deleted.
+    """
+    return Path(tempfile.gettempdir()) / "pyrisearch_tauso"
+
+
+def _write_fasta(sequences, path):
+    with open(path, "w") as out:
+        if isinstance(sequences, Mapping):
+            sequences = sequences.items()
+        for name, sequence in sequences:
+            out.write(f">{name}\n{sequence}\n")
+
+
+@contextmanager
+def _as_fasta(sequences, role):
+    """A path to `sequences`, writing one only when they are not already a file.
+
+    The file is named uniquely and removed on the way out, so searches running
+    beside each other in threads cannot land on the same name.
+    """
+    if isinstance(sequences, (str, Path)):
+        yield str(sequences)
+        return
+
+    scratch = _scratch_dir()
+    scratch.mkdir(parents=True, exist_ok=True)
+    fd, path = tempfile.mkstemp(prefix=f"{role}-", suffix=".fa", dir=str(scratch))
+    os.close(fd)
+    try:
+        _write_fasta(sequences, path)
+        yield path
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+def _search_args(query_path, target_path, min_score, matrix, extension_penalty,
+                 neighborhood, transpose, extra_args):
+    """Only the options that were asked for; the rest are RIsearch's own defaults."""
+    args = ["-q", query_path, "-t", target_path, "-s", str(min_score)]
+    if matrix is not None:
+        args += ["-m", matrix]
+    if extension_penalty is not None:
+        args += ["-d", str(extension_penalty)]
+    if neighborhood is not None:
+        args += ["-n", str(neighborhood)]
+    if transpose:
+        args.append("-R")
+    return args + list(extra_args)
+
+
+@contextmanager
+def search(
+    queries,
+    targets,
+    *,
+    min_score: int,
+    matrix: str | None = None,
+    extension_penalty: int | None = None,
+    neighborhood: int | None = None,
+    transpose: bool = False,
+    columns: Sequence[str] = HIT_COLUMNS,
+    block_size: int = DEFAULT_BLOCK_SIZE,
+    extra_args: Sequence[str] = (),
+) -> Iterator[Iterator[pa.RecordBatch]]:
+    """Search `queries` against `targets` and read the hits as record batches.
+
+    Either side is a mapping of name to sequence, a sequence of (name, sequence)
+    pairs, or a path to a FASTA file. Sequences are written to a file of their
+    own under the machine's scratch directory and removed afterwards; a path is
+    used where it lies.
+
+    The sequences go to RIsearch as given. A query meant to bind its target has
+    to be handed over already reverse complemented -- that belongs to whoever
+    knows what the sequences are for.
+
+    `matrix`, `extension_penalty` and `neighborhood` are left out of the command
+    line when they are None, so RIsearch's own defaults govern rather than any
+    chosen here. `extra_args` carries options this signature does not name.
+
+    What is held at once follows `block_size`, so the number of queries is
+    limited by time rather than memory: 2000 queries producing 385 million hits
+    ran in 99 MB.
+    """
+    with _as_fasta(queries, "query") as query_path, _as_fasta(targets, "target") as target_path:
+        args = _search_args(query_path, target_path, min_score, matrix,
+                            extension_penalty, neighborhood, transpose, extra_args)
+        with stream(args, columns=columns, block_size=block_size) as batches:
+            yield batches
