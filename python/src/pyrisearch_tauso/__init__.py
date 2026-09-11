@@ -14,6 +14,7 @@ import subprocess
 import tempfile
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
+from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _installed_version
 from pathlib import Path
@@ -27,9 +28,12 @@ __all__ = [
     "DEFAULT_BLOCK_SIZE",
     "HIT_COLUMNS",
     "RIsearchError",
+    "Reduction",
     "executable_path",
+    "hits_table",
     "run",
     "search",
+    "search_reduced",
     "stream",
     "__version__",
 ]
@@ -322,3 +326,67 @@ def search(
                             extension_penalty, neighborhood, transpose, extra_args)
         with stream(args, columns=columns, block_size=block_size) as batches:
             yield batches
+
+
+def _empty_hits(columns):
+    """A table with the hit schema and no rows, for a search that found none."""
+    return pa.table({column: pa.array([], HIT_TYPES[column]) for column in columns})
+
+
+def hits_table(queries, targets, **search_options):
+    """Every hit of one search, as a single pyarrow table.
+
+    Takes what search() takes. The whole result is held at once, so this is for
+    a search whose hits fit in memory -- checking one against another, or a run
+    small enough to look at. search_reduced() is what a large one wants.
+
+    A search that found nothing gives back a table with the hit schema and no
+    rows, rather than nothing at all, so a caller can read its columns either
+    way.
+    """
+    columns = search_options.get("columns", HIT_COLUMNS)
+    with search(queries, targets, **search_options) as batches:
+        tables = [pa.Table.from_batches([batch]) for batch in batches]
+    return pa.concat_tables(tables) if tables else _empty_hits(columns)
+
+
+@dataclass(frozen=True)
+class Reduction:
+    """How to turn the hits of a search into one answer.
+
+    `columns` names what the reduction reads, and is what the search parses.
+    `combine` takes one record batch and gives back a partial table; `finalize`
+    takes those partials concatenated and gives back the answer. `empty` is the
+    answer when the search found no hits at all.
+
+    Two stages rather than one because a batch holds part of the hits: the
+    smallest energy within a batch is the smallest of that batch, and the
+    smallest overall is only known once the partials are put together. The
+    second pass is what does that, and leaving it out gives one row per batch
+    where there should be one.
+    """
+
+    columns: Sequence[str]
+    combine: object
+    finalize: object
+    empty: object = None
+
+
+def search_reduced(queries, targets, *, reduction: Reduction, **search_options):
+    """Search, and reduce the hits as they arrive.
+
+    Takes what search() takes, apart from `columns`, which the reduction names.
+    Each batch is reduced as it comes and only the partials are kept, so a
+    search whose hits would not fit in memory still has an answer that does.
+    """
+    if "columns" in search_options:
+        raise TypeError("search_reduced reads the columns off the reduction")
+
+    parts = []
+    with search(queries, targets, columns=reduction.columns, **search_options) as batches:
+        for batch in batches:
+            parts.append(reduction.combine(batch))
+
+    if not parts:
+        return reduction.empty
+    return reduction.finalize(pa.concat_tables(parts))
