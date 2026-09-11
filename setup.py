@@ -64,6 +64,11 @@ def _build_risearch_binary(force_target_dir=None):
     For `pip install .` / wheel builds, `force_target_dir` is the staged
     `build/lib/risearch` directory. For `pip install -e .`, it is None and the
     binary lands in `src/risearch/bin/` so the editable install can find it.
+
+    cmake is invoked every time. It builds only what changed, which is a
+    judgement the build system can make from the sources and this script cannot:
+    an editable install that trusted the copied binary because it existed would
+    keep handing back whatever was compiled first, however old.
     """
     root_dir = os.path.dirname(os.path.abspath(__file__))
     base_dir = os.path.join(root_dir, "RIsearch1")
@@ -76,10 +81,6 @@ def _build_risearch_binary(force_target_dir=None):
         dest_dir = os.path.join(root_dir, "src", PACKAGE_NAME, "bin")
 
     dest_path = os.path.join(dest_dir, BINARY_NAME)
-
-    if not force_target_dir and os.path.exists(dest_path):
-        print(f"Binary already exists at {dest_path}, skipping rebuild.")
-        return
 
     print("--- BUILDING RIsearch ---")
 
