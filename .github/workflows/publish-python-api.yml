@@ -1,0 +1,61 @@
+name: Publish pyrisearch-tauso
+
+# pyrisearch-tauso versions on its own, so it has its own tags: py-v0.1.0 and so
+# on. A v* tag releases the binary package and leaves this one alone.
+on:
+  push:
+    tags:
+      - "py-v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build the pure Python distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check the tag against the version
+        if: startsWith(github.ref, 'refs/tags/py-v')
+        run: |
+          tagged="${GITHUB_REF_NAME#py-v}"
+          declared=$(python -c "import tomllib; print(tomllib.load(open('python/pyproject.toml','rb'))['project']['version'])")
+          if [ "$tagged" != "$declared" ]; then
+            echo "tag py-v$tagged does not match python/pyproject.toml version $declared"
+            exit 1
+          fi
+          echo "releasing $declared"
+
+      - name: Build
+        run: |
+          python -m pip install --upgrade build
+          python -m build python/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-api
+          path: python/dist/*
+
+  publish:
+    name: Publish to PyPI
+    needs: [build]
+    runs-on: ubuntu-latest
+    # Publish only on tag pushes; manual dispatch builds artifacts but doesn't upload.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/py-v')
+    environment:
+      name: pypi-python-api
+      url: https://pypi.org/p/pyrisearch-tauso
+    permissions:
+      # Required for PyPI trusted publishing — no API token needed.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-api
+          path: dist
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
