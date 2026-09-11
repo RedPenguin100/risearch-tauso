@@ -227,12 +227,13 @@ def stream(
 def _scratch_dir():
     """Where the FASTA files a search writes go.
 
-    /dev/shm is a tmpfs, so what is written there stays in memory and the
-    sequences never reach a disk.
+    tempfile.gettempdir() reads TMPDIR, which is how a machine says where its
+    scratch space is. What is written stays in the page cache, so RIsearch reads
+    it back out of memory, and the kernel is free to drop it when memory is
+    wanted elsewhere -- which a tmpfs like /dev/shm cannot do, since what is
+    written there is held until it is deleted.
     """
-    shm = Path("/dev/shm")
-    base = shm if shm.is_dir() and os.access(shm, os.W_OK) else Path(tempfile.gettempdir())
-    return base / "pyrisearch_tauso"
+    return Path(tempfile.gettempdir()) / "pyrisearch_tauso"
 
 
 def _write_fasta(sequences, path):
@@ -301,7 +302,7 @@ def search(
 
     Either side is a mapping of name to sequence, a sequence of (name, sequence)
     pairs, or a path to a FASTA file. Sequences are written to a file of their
-    own, under /dev/shm where there is one, and removed afterwards; a path is
+    own under the machine's scratch directory and removed afterwards; a path is
     used where it lies.
 
     The sequences go to RIsearch as given. A query meant to bind its target has
