@@ -109,3 +109,40 @@ table = ris.hits_table(queries=queries, targets=targets, min_score=900)
 The whole result is held, so this is for a search small enough to look at. A
 search that found nothing gives back a table with the hit schema and no rows,
 so its columns read the same either way.
+
+## Energy statistics at several cutoffs
+
+`energy_stats` supplies a reduction for the Boltzmann sum and minimum energy.
+Pass RT explicitly in kcal/mol; the library does not choose a temperature.
+
+```python
+cutoffs = [800, 1000, 1200]
+stats = ris.search_reduced(
+    queries=queries, targets=targets,
+    min_score=min(cutoffs), neighborhood=0,
+    reduction=ris.energy_stats(cutoffs, group_by=("query", "target"), rt=0.616),
+)
+# stats[cutoff][(query_id, target_id)].sum_exp and .min_energy
+```
+
+Each cutoff uses `score > cutoff`. Use `group_by=("query",)` to combine targets
+and obtain query IDs as keys. The sum is `sum(exp(-energy / rt))`; it is not a
+normalized occupancy probability. No hits returns `{}`. Sums retain the
+existing batch-then-final aggregation order and floating-point behavior.
+Partial tables remain in memory until finalization, so memory also depends on
+how many groups each batch produces.
+
+## Reusing targets across searches
+
+```python
+with ris.fasta_targets(target_sequences) as target_path:
+    for queries in query_chunks:
+        stats = ris.search_reduced(
+            queries=queries, targets=target_path, min_score=800,
+            reduction=ris.energy_stats([800], rt=0.616),
+        )
+```
+
+The context writes the targets once and removes the temporary FASTA on exit,
+including exceptions. An existing path is borrowed without deleting it. All
+workers using the path must finish before the context exits.
