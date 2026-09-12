@@ -164,21 +164,28 @@ def _with_format(args):
     raise ValueError(f"not a RIsearch output format: -p{fmt}")
 
 
-def _batches(stdout, read_options, parse_options, convert_options):
-    try:
-        reader = pacsv.open_csv(
-            stdout,
-            read_options=read_options,
-            parse_options=parse_options,
-            convert_options=convert_options,
-        )
-    except pa.ArrowInvalid:
-        # RIsearch wrote nothing, which is what no hits looks like. Raised here
-        # rather than during the walk, so a malformed row still surfaces.
+def _batches(stdout, read_options, parse_options, convert_options, reached_the_end):
+    """The hits, a batch at a time, appending to `reached_the_end` when there are
+    no more.
+
+    A search that found nothing writes nothing, and the reader cannot tell that
+    from a first block it could not parse -- both raise ArrowInvalid. Asking the
+    pipe whether anything arrived separates them, so unparseable output raises
+    rather than passing for no hits.
+    """
+    if not stdout.peek(1):
+        reached_the_end.append(True)
         return
+    reader = pacsv.open_csv(
+        stdout,
+        read_options=read_options,
+        parse_options=parse_options,
+        convert_options=convert_options,
+    )
     for batch in reader:
         if batch.num_rows:
             yield batch
+    reached_the_end.append(True)
 
 
 @contextmanager
@@ -227,8 +234,11 @@ def stream(
             cwd=cwd,
             bufsize=-1,
         )
+        reached_the_end = []
         try:
-            yield _batches(proc.stdout, read_options, parse_options, convert_options)
+            yield _batches(
+                proc.stdout, read_options, parse_options, convert_options, reached_the_end
+            )
         except BaseException:
             # The caller stopped early or failed; theirs is the error worth
             # seeing, so end the run without reading it out.
@@ -236,8 +246,12 @@ def stream(
             proc.wait()
             raise
         else:
-            proc.stdout.read()
-            if proc.wait() != 0:
+            if not reached_the_end:
+                # The caller has what it wanted and RIsearch has more to write.
+                # Reading the rest out to be polite would hold all of it.
+                proc.kill()
+                proc.wait()
+            elif proc.wait() != 0:
                 errors.seek(0)
                 raise RIsearchError(
                     proc.returncode,
