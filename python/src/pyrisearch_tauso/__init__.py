@@ -44,16 +44,16 @@ except PackageNotFoundError:  # running from a source tree, not installed
     __version__ = "0.0.0+unknown"
 
 # The table `-p2` prints, in order.
-HIT_COLUMNS = ("qname", "qbeg", "qend", "tname", "tbeg", "tend", "score", "energy")
+HIT_COLUMNS = ("query", "query_start", "query_end", "target", "target_start", "target_end", "score", "energy")
 
 # Coordinates and scores are C ints; energy keeps the width it is printed at.
 HIT_TYPES = {
-    "qname": pa.string(),
-    "qbeg": pa.int32(),
-    "qend": pa.int32(),
-    "tname": pa.string(),
-    "tbeg": pa.int32(),
-    "tend": pa.int32(),
+    "query": pa.string(),
+    "query_start": pa.int32(),
+    "query_end": pa.int32(),
+    "target": pa.string(),
+    "target_start": pa.int32(),
+    "target_end": pa.int32(),
     "score": pa.int32(),
     "energy": pa.float64(),
 }

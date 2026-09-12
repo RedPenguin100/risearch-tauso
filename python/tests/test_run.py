@@ -35,8 +35,8 @@ def test_query_target_name_parsing(pair):
     query, target = pair
     result = pyrisearch_tauso.run(["-q", str(query), "-t", str(target), "-s", "500", "-p2"])
 
-    qname, _qbeg, _qend, tname = result.stdout.splitlines()[0].split("\t")[:4]
-    assert (qname, tname) == (QUERY_NAME, TARGET_NAME)
+    query, _qbeg, _qend, target = result.stdout.splitlines()[0].split("\t")[:4]
+    assert (query, target) == (QUERY_NAME, TARGET_NAME)
 
 
 def test_no_hits_is_not_a_failure(pair):
