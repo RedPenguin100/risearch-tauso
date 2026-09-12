@@ -21,28 +21,28 @@ def best_energy_per_pair():
     def combine(batch):
         return (
             pa.Table.from_batches([batch])
-            .group_by(["qname", "tname"])
+            .group_by(["query", "target"])
             .aggregate([("energy", "min")])
-            .rename_columns(["qname", "tname", "energy"])
+            .rename_columns(["query", "target", "energy"])
         )
 
     def finalize(table):
         merged = (
-            table.group_by(["qname", "tname"])
+            table.group_by(["query", "target"])
             .aggregate([("energy", "min")])
-            .rename_columns(["qname", "tname", "energy"])
+            .rename_columns(["query", "target", "energy"])
         )
         return {
             (q, t): e
             for q, t, e in zip(
-                merged.column("qname").to_pylist(),
-                merged.column("tname").to_pylist(),
+                merged.column("query").to_pylist(),
+                merged.column("target").to_pylist(),
                 merged.column("energy").to_pylist(),
             )
         }
 
     return pyrisearch_tauso.Reduction(
-        columns=("qname", "tname", "energy"), combine=combine, finalize=finalize, empty={}
+        columns=("query", "target", "energy"), combine=combine, finalize=finalize, empty={}
     )
 
 
@@ -71,7 +71,7 @@ def test_the_reduction_names_the_columns():
     with pytest.raises(TypeError, match="off the reduction"):
         pyrisearch_tauso.search_reduced(
             queries=QUERIES, targets=TARGETS, min_score=MIN_SCORE,
-            reduction=best_energy_per_pair(), columns=("qname",),
+            reduction=best_energy_per_pair(), columns=("query",),
         )
 
 
@@ -80,16 +80,16 @@ def test_only_the_columns_a_reduction_reads_are_parsed():
 
     def combine(batch):
         seen.append(batch.schema.names)
-        return pa.Table.from_batches([batch]).group_by(["qname"]).aggregate([("energy", "min")])
+        return pa.Table.from_batches([batch]).group_by(["query"]).aggregate([("energy", "min")])
 
     pyrisearch_tauso.search_reduced(
         queries=QUERIES, targets=TARGETS, min_score=MIN_SCORE,
         reduction=pyrisearch_tauso.Reduction(
-            columns=("qname", "energy"), combine=combine, finalize=lambda t: t, empty=None
+            columns=("query", "energy"), combine=combine, finalize=lambda t: t, empty=None
         ),
     )
 
-    assert seen and all(names == ["qname", "energy"] for names in seen)
+    assert seen and all(names == ["query", "energy"] for names in seen)
 
 
 def test_hits_table_holds_every_hit():
@@ -97,7 +97,7 @@ def test_hits_table_holds_every_hit():
 
     assert table.num_rows > 0
     assert table.column_names == list(pyrisearch_tauso.HIT_COLUMNS)
-    assert set(table.column("qname").to_pylist()) == {QUERY_NAME}
+    assert set(table.column("query").to_pylist()) == {QUERY_NAME}
 
 
 def test_hits_table_keeps_its_columns_when_there_are_no_hits():
@@ -112,10 +112,10 @@ def test_hits_table_keeps_its_columns_when_there_are_no_hits():
 
 def test_hits_table_takes_a_column_subset():
     table = pyrisearch_tauso.hits_table(
-        queries=QUERIES, targets=TARGETS, min_score=MIN_SCORE, columns=("qname", "energy")
+        queries=QUERIES, targets=TARGETS, min_score=MIN_SCORE, columns=("query", "energy")
     )
 
-    assert table.column_names == ["qname", "energy"]
+    assert table.column_names == ["query", "energy"]
 
 
 def test_a_reduction_over_several_batches_matches_one_pass():

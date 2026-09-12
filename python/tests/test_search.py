@@ -29,8 +29,8 @@ def test_sequences_given_as_mappings():
         table = collect(batches)
 
     assert table.num_rows > 0
-    assert table.column("qname")[0].as_py() == QUERY_NAME
-    assert table.column("tname")[0].as_py() == TARGET_NAME
+    assert table.column("query")[0].as_py() == QUERY_NAME
+    assert table.column("target")[0].as_py() == TARGET_NAME
 
 
 def test_sequences_given_as_pairs():
@@ -45,7 +45,7 @@ def test_sequences_given_as_pairs():
         from_mappings = collect(batches)
 
     assert from_pairs.num_rows == from_mappings.num_rows
-    assert from_pairs.column("qname")[0].as_py() == QUERY_NAME
+    assert from_pairs.column("query")[0].as_py() == QUERY_NAME
 
 
 def test_files_are_taken_where_they_lie(tmp_path):
@@ -65,7 +65,7 @@ def test_files_are_taken_where_they_lie(tmp_path):
         from_sequences = collect(batches)
 
     assert from_files.num_rows == from_sequences.num_rows
-    assert from_files.column("qname")[0].as_py() == QUERY_NAME
+    assert from_files.column("query")[0].as_py() == QUERY_NAME
 
 
 def test_one_side_may_be_a_file(tmp_path):
@@ -78,8 +78,8 @@ def test_one_side_may_be_a_file(tmp_path):
         table = collect(batches)
 
     assert table.num_rows > 0
-    assert table.column("qname")[0].as_py() == QUERY_NAME
-    assert table.column("tname")[0].as_py() == TARGET_NAME
+    assert table.column("query")[0].as_py() == QUERY_NAME
+    assert table.column("target")[0].as_py() == TARGET_NAME
 
 
 def test_sequences_are_written_as_they_are(tmp_path):
@@ -150,7 +150,7 @@ def test_searches_running_beside_each_other_keep_their_own_results():
         tables = list(pool.map(search_one_query, names))
 
     for name, table in zip(names, tables):
-        assert set(table.column("qname").to_pylist()) == {name}
+        assert set(table.column("query").to_pylist()) == {name}
     assert len({table.num_rows for table in tables}) == 1
 
 

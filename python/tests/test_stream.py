@@ -47,11 +47,11 @@ def test_streamed_rows_match_the_buffered_run(pair):
 
 def test_a_column_subset_skips_the_rest(pair):
     query, target = pair
-    with pyrisearch_tauso.stream(args_for(query, target), columns=("qname", "energy")) as batches:
+    with pyrisearch_tauso.stream(args_for(query, target), columns=("query", "energy")) as batches:
         table = pa.Table.from_batches(list(batches))
 
-    assert table.column_names == ["qname", "energy"]
-    assert table.column("qname")[0].as_py() == QUERY_NAME
+    assert table.column_names == ["query", "energy"]
+    assert table.column("query")[0].as_py() == QUERY_NAME
 
 
 def test_no_hits_yields_no_batches(pair):
@@ -109,7 +109,7 @@ def test_a_value_that_is_not_a_format_is_refused(pair):
 def test_an_unknown_column_is_refused(pair):
     query, target = pair
     with pytest.raises(ValueError, match="not RIsearch hit columns"):
-        with pyrisearch_tauso.stream(args_for(query, target), columns=("qname", "nonsense")):
+        with pyrisearch_tauso.stream(args_for(query, target), columns=("query", "nonsense")):
             pass
 
 

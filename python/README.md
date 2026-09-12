@@ -18,7 +18,7 @@ import pyrisearch_tauso as ris
 
 result = ris.run(["-q", "queries.fa", "-t", "targets.fa", "-s", "900", "-p2"])
 for line in result.stdout.splitlines():
-    qname, qbeg, qend, tname, tbeg, tend, score, energy = line.split("\t")
+    query, query_start, query_end, target, target_start, target_end, score, energy = line.split("\t")
 ```
 
 A run that fails raises `RIsearchError`, carrying what RIsearch wrote to stderr,
@@ -36,11 +36,11 @@ import pyrisearch_tauso as ris
 
 parts = []
 with ris.stream(["-q", "queries.fa", "-t", "targets.fa", "-s", "900"],
-                columns=("qname", "tname", "energy")) as batches:
+                columns=("query", "target", "energy")) as batches:
     for batch in batches:
         parts.append(
             pa.Table.from_batches([batch])
-            .group_by(["qname", "tname"]).aggregate([("energy", "min")])
+            .group_by(["query", "target"]).aggregate([("energy", "min")])
         )
 ```
 
@@ -65,17 +65,17 @@ import pyrisearch_tauso as ris
 
 def combine(batch):                       # one batch -> a partial
     return (pa.Table.from_batches([batch])
-            .group_by(["qname", "tname"]).aggregate([("energy", "min")])
-            .rename_columns(["qname", "tname", "energy"]))
+            .group_by(["query", "target"]).aggregate([("energy", "min")])
+            .rename_columns(["query", "target", "energy"]))
 
 def finalize(partials):                   # the partials -> the answer
-    return (partials.group_by(["qname", "tname"]).aggregate([("energy", "min")])
-            .rename_columns(["qname", "tname", "energy"]))
+    return (partials.group_by(["query", "target"]).aggregate([("energy", "min")])
+            .rename_columns(["query", "target", "energy"]))
 
 best = ris.search_reduced(
     queries=queries, targets=targets, min_score=900,
     reduction=ris.Reduction(
-        columns=("qname", "tname", "energy"),
+        columns=("query", "target", "energy"),
         combine=combine, finalize=finalize, empty={},
     ),
 )
