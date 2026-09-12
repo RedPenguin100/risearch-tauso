@@ -15,6 +15,7 @@ import tempfile
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
+from enum import Enum
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _installed_version
 from pathlib import Path
@@ -27,6 +28,7 @@ from risearch_tauso import executable_path
 __all__ = [
     "DEFAULT_BLOCK_SIZE",
     "HIT_COLUMNS",
+    "Matrix",
     "RIsearchError",
     "Reduction",
     "executable_path",
@@ -42,6 +44,25 @@ try:
     __version__ = _installed_version("pyrisearch-tauso")
 except PackageNotFoundError:  # running from a source tree, not installed
     __version__ = "0.0.0+unknown"
+
+class Matrix(str, Enum):
+    """The scoring matrices RIsearch takes for `-m`.
+
+    Each is a string, so it can be passed to `matrix=` as it is or written out
+    in full. The interaction each one scores is RIsearch's own, from the table
+    in its src/dsm.h.
+    """
+
+    T99 = "t99"  # RNA-RNA
+    T04 = "t04"  # RNA-RNA, and what RIsearch uses when not told otherwise
+    SU95 = "su95"  # RNA-DNA
+    SU95_NO_GU = "su95_noGU"  # RNA-DNA, wobble pairs left out
+    SLH04_NO_GU = "slh04_noGU"  # DNA-DNA, wobble pairs left out
+
+    # Without this a member reads as "Matrix.T04" wherever it is printed, and
+    # what RIsearch wants is the value.
+    __str__ = str.__str__
+
 
 # The table `-p2` prints, in order.
 HIT_COLUMNS = ("query", "query_start", "query_end", "target", "target_start", "target_end", "score", "energy")
