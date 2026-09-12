@@ -27,6 +27,9 @@ from risearch_tauso import executable_path
 
 __all__ = [
     "DEFAULT_BLOCK_SIZE",
+    "EnergyStats",
+    "energy_stats",
+    "fasta_targets",
     "HIT_COLUMNS",
     "Matrix",
     "RIsearchError",
@@ -425,3 +428,19 @@ def search_reduced(queries, targets, *, reduction: Reduction, **search_options):
     if not parts:
         return reduction.empty
     return reduction.finalize(pa.concat_tables(parts))
+
+
+@contextmanager
+def fasta_targets(sequences):
+    """Prepare a target FASTA once for reuse across searches, cleaning it up on exit.
+
+    Accepts the same targets as search(). An existing path is borrowed and never
+    deleted. Keep this context open until all searches using the path have finished.
+    """
+    with _as_fasta(sequences, "target") as path:
+        yield path
+
+
+# Last, not at the top: energy.py builds on Reduction, so it can only be
+# imported once this module has defined it.
+from .energy import EnergyStats, energy_stats  # noqa: E402
