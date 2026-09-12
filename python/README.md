@@ -52,6 +52,23 @@ in the same wall time -- RIsearch's own work dominates all of them.
 `stream()` reads the eight-column `-p2` table and passes `-p2` itself, so leave
 `-p` out of `args`.
 
+## Which matrix
+
+RIsearch scores with one of five matrices, named on `Matrix` so they can be
+reached by name rather than remembered:
+
+```python
+ris.Matrix.T99         # RNA-RNA
+ris.Matrix.T04         # RNA-RNA, and what RIsearch uses when not told otherwise
+ris.Matrix.SU95        # RNA-DNA
+ris.Matrix.SU95_NO_GU  # RNA-DNA, wobble pairs left out
+ris.Matrix.SLH04_NO_GU # DNA-DNA, wobble pairs left out
+```
+
+Each is a string, so `matrix=ris.Matrix.SU95_NO_GU` and `matrix="su95_noGU"`
+are the same thing. Which interaction each one scores is RIsearch's own, from
+the table in its `src/dsm.h`.
+
 ## One search, reduced
 
 Reducing each batch as it arrives is the shape a large search wants, and it has

@@ -1,4 +1,5 @@
 import concurrent.futures
+import subprocess
 import os
 
 import pyarrow as pa
@@ -160,3 +161,33 @@ def test_the_format_is_still_refused_through_search():
             queries=QUERIES, targets=TARGETS, min_score=MIN_SCORE, extra_args=["-p3"]
         ):
             pass
+
+
+def test_a_matrix_reaches_risearch_as_its_value():
+    """A member is a string, so it goes on the command line as one."""
+    captured = []
+    real = subprocess.Popen
+
+    def spy(args, *a, **kw):
+        captured.append([str(x) for x in args])
+        return real(args, *a, **kw)
+
+    subprocess.Popen = spy
+    try:
+        with pyrisearch_tauso.search(
+            queries=QUERIES, targets=TARGETS, min_score=MIN_SCORE,
+            matrix=pyrisearch_tauso.Matrix.T04,
+        ) as batches:
+            list(batches)
+    finally:
+        subprocess.Popen = real
+
+    assert "-m" in captured[0]
+    assert captured[0][captured[0].index("-m") + 1] == "t04"
+
+
+def test_every_matrix_risearch_names_is_a_member():
+    """RIsearch lists these in its own -m message."""
+    assert {m.value for m in pyrisearch_tauso.Matrix} == {
+        "t99", "t04", "su95", "su95_noGU", "slh04_noGU"
+    }
