@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyrisearch-tauso"
-version = "0.4.0"
+version = "0.4.1"
 description = "Python API over the RIsearch binary (RNA-RNA / RNA-DNA / DNA-DNA interaction search), tauso fork."
 readme = "README.md"
 requires-python = ">=3.9"
