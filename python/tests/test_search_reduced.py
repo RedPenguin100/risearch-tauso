@@ -129,3 +129,24 @@ def test_a_reduction_over_several_batches_matches_one_pass():
     )
 
     assert small_blocks == one_block
+
+
+def test_a_min_score_above_what_the_reduction_counts_is_refused():
+    """A reduction that counts hits down to a score cannot be fed a search that
+    stopped above it: the hits it never saw would be missing with nothing to say so."""
+    reduction = pyrisearch_tauso.Reduction(
+        columns=("query", "target", "energy"),
+        combine=best_energy_per_pair().combine,
+        finalize=best_energy_per_pair().finalize,
+        empty={},
+        min_score_at_most=MIN_SCORE,
+    )
+    with pytest.raises(ValueError, match="at most"):
+        pyrisearch_tauso.search_reduced(
+            queries=QUERIES, targets=TARGETS, min_score=MIN_SCORE + 1, reduction=reduction
+        )
+
+    reduced = pyrisearch_tauso.search_reduced(
+        queries=QUERIES, targets=TARGETS, min_score=MIN_SCORE, reduction=reduction
+    )
+    assert (QUERY_NAME, TARGET_NAME) in reduced
