@@ -278,12 +278,33 @@ def _scratch_dir():
     return Path(tempfile.gettempdir()) / "pyrisearch_tauso"
 
 
+# RIsearch reads a header line into a 512-byte buffer: the '>', the name, the
+# newline, and the NUL fgets adds. A header that does not fit is read as two
+# lines, the second as sequence, which moves every coordinate it reports.
+MAX_NAME_BYTES = 512 - 3
+
+
+def _fasta_name(name):
+    """`name` as it goes after the '>', refused when RIsearch would misread it.
+
+    RIsearch takes the name to be the first whitespace-separated token after the
+    '>', so whitespace cuts it short and the hits come back under a different
+    name; a header with nothing after the '>' crashes it.
+    """
+    name = str(name)
+    if not name or any(c.isspace() for c in name):
+        raise ValueError(f"a FASTA name must have no whitespace and not be empty: {name!r}")
+    if len(name.encode()) > MAX_NAME_BYTES:
+        raise ValueError(f"a FASTA name must be at most {MAX_NAME_BYTES} bytes: {name[:32]!r}...")
+    return name
+
+
 def _write_fasta(sequences, path):
     with open(path, "w") as out:
         if isinstance(sequences, Mapping):
             sequences = sequences.items()
         for name, sequence in sequences:
-            out.write(f">{name}\n{sequence}\n")
+            out.write(f">{_fasta_name(name)}\n{sequence}\n")
 
 
 @contextmanager
@@ -402,12 +423,18 @@ class Reduction:
     smallest overall is only known once the partials are put together. The
     second pass is what does that, and leaving it out gives one row per batch
     where there should be one.
+
+    `min_score_at_most` is the highest `min_score` the search may run with: a
+    reduction that counts every hit above some score has to be handed all of
+    them, and a search run above that score leaves some out with nothing to say
+    so. None puts no limit on it.
     """
 
     columns: Sequence[str]
     combine: object
     finalize: object
     empty: object = None
+    min_score_at_most: int | None = None
 
 
 def search_reduced(queries, targets, *, reduction: Reduction, **search_options):
@@ -419,6 +446,12 @@ def search_reduced(queries, targets, *, reduction: Reduction, **search_options):
     """
     if "columns" in search_options:
         raise TypeError("search_reduced reads the columns off the reduction")
+    limit = reduction.min_score_at_most
+    if limit is not None and search_options.get("min_score", limit) > limit:
+        raise ValueError(
+            f"min_score={search_options['min_score']} leaves out hits the reduction "
+            f"counts: it must be at most {limit}"
+        )
 
     parts = []
     with search(queries, targets, columns=reduction.columns, **search_options) as batches:

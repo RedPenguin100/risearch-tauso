@@ -80,3 +80,7 @@ def test_existing_target_is_borrowed(tmp_path):
     with fasta_targets(path) as target:
         assert Path(target) == path
     assert path.read_text() == ">t\nACGT\n"
+
+
+def test_energy_stats_asks_for_every_hit_above_its_lowest_cutoff():
+    assert energy_stats([1200, 800, 1000], rt=0.616).min_score_at_most == 800

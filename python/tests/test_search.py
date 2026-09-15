@@ -191,3 +191,28 @@ def test_every_matrix_risearch_names_is_a_member():
     assert {m.value for m in pyrisearch_tauso.Matrix} == {
         "t99", "t04", "su95", "su95_noGU", "slh04_noGU"
     }
+
+
+@pytest.mark.parametrize("name", ["", " ", "a b", "a\tb", "a\nb", "x" * 510])
+def test_a_name_risearch_would_misread_is_refused(tmp_path, name):
+    """Nothing after the '>' crashes RIsearch, whitespace cuts the name short so
+    the hits come back under another, and a header past 512 bytes is read as
+    sequence and moves every coordinate."""
+    with pytest.raises(ValueError):
+        _write_fasta({name: QUERY}, tmp_path / "bad.fa")
+
+
+def test_a_name_that_just_fits_is_written(tmp_path):
+    name = "x" * 509
+    path = tmp_path / "long.fa"
+    _write_fasta({name: QUERY}, path)
+
+    assert path.read_text() == f">{name}\n{QUERY}\n"
+
+
+def test_a_name_need_not_be_a_string(tmp_path):
+    """A row number is a fine name; it is written the way str() spells it."""
+    path = tmp_path / "numbered.fa"
+    _write_fasta([(7, QUERY)], path)
+
+    assert path.read_text() == f">7\n{QUERY}\n"

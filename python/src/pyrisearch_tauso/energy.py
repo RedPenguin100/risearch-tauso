@@ -24,7 +24,8 @@ def energy_stats(cutoffs, *, group_by=("query", "target"), rt):
     sums, their last bits can depend on batch boundaries and Arrow threading.
     No hits returns {}. A cutoff without qualifying hits has an empty mapping
     when other hits were read. Filtering several cutoffs from one search requires
-    min_score <= min(cutoffs); use neighborhood=0 for independent endpoint hits.
+    min_score <= min(cutoffs), which search_reduced enforces; use neighborhood=0
+    for independent endpoint hits.
     """
     cutoffs = sorted({int(c) for c in cutoffs})
     keys = tuple(group_by)
@@ -80,4 +81,10 @@ def energy_stats(cutoffs, *, group_by=("query", "target"), rt):
             result[cutoff][key] = EnergyStats(float(values[-2]), float(values[-1]))
         return result
 
-    return Reduction(columns=(*keys, "score", "energy"), combine=combine, finalize=finalize, empty={})
+    return Reduction(
+        columns=(*keys, "score", "energy"),
+        combine=combine,
+        finalize=finalize,
+        empty={},
+        min_score_at_most=cutoffs[0],
+    )
